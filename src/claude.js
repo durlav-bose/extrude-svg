@@ -363,31 +363,127 @@ function updateHandlesVisibility(visible) {
   if (rotationHandle) rotationHandle.visible = visible;
 }
 
-// Screenshot function
 function takeScreenshot() {
   // Store handle visibility and hide them
   const handlesVisible = movementHandle ? movementHandle.visible : false;
   updateHandlesVisibility(false);
 
+  // Get the original canvas dimensions to maintain aspect ratio
+  const originalWidth = renderer.domElement.width;
+  const originalHeight = renderer.domElement.height;
+
   // Create a new scene for capturing
   const captureScene = new THREE.Scene();
   captureScene.background = scene.background.clone();
 
-  // Clone the rotation group with all its children
-  const captureGroup = rotationGroup.clone(true);
-  captureScene.add(captureGroup);
+  // Copy all lights from the original scene
+  scene.traverse((obj) => {
+    if (obj.isLight) {
+      const lightClone = obj.clone();
+      captureScene.add(lightClone);
+    }
+  });
 
-  // Create a camera that matches the current view
-  const captureCamera = new THREE.OrthographicCamera(
-    camera.left,
-    camera.right,
-    camera.top,
-    camera.bottom,
-    camera.near,
-    camera.far
-  );
+  // Create a new rotation group with the same transformation
+  const captureRotationGroup = new THREE.Group();
+  captureRotationGroup.position.copy(rotationGroup.position);
+  captureRotationGroup.rotation.copy(rotationGroup.rotation);
+  captureRotationGroup.scale.copy(rotationGroup.scale);
+  captureScene.add(captureRotationGroup);
+
+  // Create a new SVG group with the same transformation
+  const captureSvgGroup = new THREE.Group();
+  captureSvgGroup.position.copy(svgGroup.position);
+  captureSvgGroup.rotation.copy(svgGroup.rotation);
+  captureSvgGroup.scale.copy(svgGroup.scale);
+  captureRotationGroup.add(captureSvgGroup);
+
+  // Use the same traversal pattern as your color change code
+  svgGroup.traverse((child) => {
+    if (child.isMesh) {
+      // Clone geometry
+      const newGeometry = child.geometry.clone();
+
+      // Handle materials
+      let newMaterial;
+
+      if (Array.isArray(child.material)) {
+        // Handle multi-material
+        newMaterial = child.material.map((mat) => {
+          // Create a completely new material of the same type
+          let clonedMat;
+
+          if (mat.type === "MeshPhongMaterial") {
+            // For PhongMaterial, create a new one with explicit color
+            clonedMat = new THREE.MeshPhongMaterial({
+              color: mat.color ? mat.color.clone() : 0x00ff00,
+              emissive: mat.emissive ? mat.emissive.clone() : 0x000000,
+              specular: mat.specular ? mat.specular.clone() : 0x111111,
+              shininess: mat.shininess || 30,
+              flatShading: mat.flatShading || false,
+              side: mat.side || THREE.DoubleSide,
+              transparent: mat.transparent || false,
+              opacity: mat.opacity !== undefined ? mat.opacity : 1,
+            });
+          } else {
+            // For other material types, basic clone
+            clonedMat = mat.clone();
+            if (mat.color) clonedMat.color.copy(mat.color);
+          }
+
+          // Force material update
+          clonedMat.needsUpdate = true;
+          return clonedMat;
+        });
+      } else {
+        // Single material
+        if (child.material.type === "MeshPhongMaterial") {
+          // For PhongMaterial, create a new one with explicit color
+          newMaterial = new THREE.MeshPhongMaterial({
+            color: child.material.color
+              ? child.material.color.clone()
+              : 0x00ff00,
+            emissive: child.material.emissive
+              ? child.material.emissive.clone()
+              : 0x000000,
+            specular: child.material.specular
+              ? child.material.specular.clone()
+              : 0x111111,
+            shininess: child.material.shininess || 30,
+            flatShading: child.material.flatShading || false,
+            side: child.material.side || THREE.DoubleSide,
+            transparent: child.material.transparent || false,
+            opacity:
+              child.material.opacity !== undefined ? child.material.opacity : 1,
+          });
+        } else {
+          // For other material types, basic clone
+          newMaterial = child.material.clone();
+          if (child.material.color)
+            newMaterial.color.copy(child.material.color);
+        }
+
+        // Force material update
+        newMaterial.needsUpdate = true;
+      }
+
+      // Create new mesh
+      const newMesh = new THREE.Mesh(newGeometry, newMaterial);
+
+      // Copy matrix transformation for exact positioning
+      newMesh.matrix.copy(child.matrix);
+      newMesh.matrixWorld.copy(child.matrixWorld);
+      newMesh.matrixAutoUpdate = false;
+
+      // Add to the capture SVG group
+      captureSvgGroup.add(newMesh);
+    }
+  });
+
+  // Create a camera that precisely matches the current view
+  const captureCamera = camera.clone();
   captureCamera.position.copy(camera.position);
-  captureCamera.quaternion.copy(camera.quaternion);
+  captureCamera.rotation.copy(camera.rotation);
   captureCamera.zoom = camera.zoom;
   captureCamera.updateProjectionMatrix();
 
@@ -397,11 +493,25 @@ function takeScreenshot() {
     preserveDrawingBuffer: true,
     alpha: true,
   });
-  captureRenderer.setSize(1000, 1000);
-  captureRenderer.setPixelRatio(1);
+  captureRenderer.setSize(originalWidth, originalHeight);
+  captureRenderer.setPixelRatio(window.devicePixelRatio);
 
-  // Render the scene
+  // Render the scene with the same background color
+  captureRenderer.setClearColor(scene.background, 1);
   captureRenderer.render(captureScene, captureCamera);
+
+  // Log the colors in the cloned scene for debugging
+  console.log("CLONED MATERIALS:");
+  captureSvgGroup.traverse((child) => {
+    if (child.isMesh && child.material) {
+      const mat = child.material;
+      console.log("Cloned Mesh:", child.uuid.substring(0, 8));
+      if (mat.color) {
+        console.log("  - Color: #" + mat.color.getHexString());
+        console.log("  - Type:", mat.type);
+      }
+    }
+  });
 
   // Get image data and trigger download
   const dataURL = captureRenderer.domElement.toDataURL("image/png");
@@ -412,207 +522,11 @@ function takeScreenshot() {
 
   // Clean up resources
   captureRenderer.dispose();
-  captureScene.remove(captureGroup);
-  captureGroup.traverse((child) => {
-    if (child.isMesh) {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((material) => material.dispose());
-        } else {
-          child.material.dispose();
-        }
-      }
-    }
-  });
+  captureScene.remove(captureRotationGroup);
 
   // Restore handle visibility
   updateHandlesVisibility(handlesVisible);
 }
-
-// function loadSVG(url) {
-//   // Store the URL for reloading
-//   window.lastLoadedSvgUrl = url;
-
-//   // Clear existing rotation group
-//   if (rotationGroup) {
-//     scene.remove(rotationGroup);
-//   }
-
-//   // Create a new rotation group
-//   rotationGroup = new THREE.Group();
-//   scene.add(rotationGroup);
-
-//   // Load the SVG with SVGLoader
-//   loader.load(
-//     url,
-//     function (data) {
-//       console.log("SVG loaded successfully");
-
-//       // Create SVG group to hold all meshes
-//       svgGroup = new THREE.Group();
-
-//       // Create materials for SVG paths
-//       const pathMaterial = new THREE.MeshPhongMaterial({
-//         color: 0x00ff00, // Green color by default
-//         side: THREE.DoubleSide,
-//         flatShading: true,
-//       });
-
-//       // Extrusion settings
-//       const extrudeSettings = {
-//         depth: 10,
-//         bevelEnabled: false,
-//       };
-
-//       // Track if we successfully added any valid objects
-//       let addedValidObject = false;
-
-//       // Process all paths from the SVG
-//       data.paths.forEach((path, pathIndex) => {
-//         try {
-//           // Convert path to shapes without detecting holes
-//           const shapes = path.toShapes(false);
-
-//           console.log("shapes :>> ", shapes);
-
-//           if (!shapes || shapes.length === 0) {
-//             return;
-//           }
-
-//           // Process each shape
-//           shapes.forEach((shape, shapeIndex) => {
-//             try {
-//               if (!shape || !shape.curves || shape.curves.length === 0) {
-//                 return;
-//               }
-
-//               // Create geometry with extrusion
-//               const geometry = new THREE.ExtrudeGeometry(
-//                 shape,
-//                 extrudeSettings
-//               );
-
-//               // Check for invalid geometry
-//               if (hasNaN(geometry)) {
-//                 console.warn(
-//                   `Invalid geometry in path ${pathIndex}, shape ${shapeIndex}`
-//                 );
-//                 return;
-//               }
-
-//               // Create mesh
-//               const mesh = new THREE.Mesh(geometry, pathMaterial.clone());
-
-//               // Flip Y axis to match SVG coordinate system
-//               mesh.scale.y = -1;
-
-//               // Add to SVG group
-//               svgGroup.add(mesh);
-//               addedValidObject = true;
-
-//               console.log(`Added shape ${shapeIndex} from path ${pathIndex}`);
-//             } catch (error) {
-//               console.warn(
-//                 `Error creating shape ${shapeIndex} from path ${pathIndex}:`,
-//                 error
-//               );
-//             }
-//           });
-//         } catch (error) {
-//           console.warn(`Error processing path ${pathIndex}:`, error);
-//         }
-//       });
-
-//       // If we successfully added objects, add SVG group to rotation group
-//       if (addedValidObject) {
-//         // Add to rotation group
-//         rotationGroup.add(svgGroup);
-
-//         // Center and scale the group
-//         try {
-//           const box = new THREE.Box3();
-
-//           svgGroup.traverse(function (child) {
-//             if (child.isMesh) {
-//               child.geometry.computeBoundingBox();
-//               const childBox = child.geometry.boundingBox;
-
-//               if (
-//                 childBox &&
-//                 !isNaN(childBox.min.x) &&
-//                 !isNaN(childBox.min.y) &&
-//                 !isNaN(childBox.min.z) &&
-//                 !isNaN(childBox.max.x) &&
-//                 !isNaN(childBox.max.y) &&
-//                 !isNaN(childBox.max.z)
-//               ) {
-//                 childBox.applyMatrix4(child.matrixWorld);
-//                 box.union(childBox);
-//               } else {
-//                 console.warn("Invalid bounding box:", child);
-//               }
-//             }
-//           });
-
-//           if (box.min.x !== Infinity) {
-//             // Center the SVG at local origin
-//             const center = box.getCenter(new THREE.Vector3());
-//             svgGroup.position.sub(center);
-
-//             // Calculate scale to make it fit nicely in the viewport
-//             const viewportWidth = camera.right - camera.left;
-//             const viewportHeight = camera.top - camera.bottom;
-
-//             // Calculate the smallest dimension (width or height)
-//             const smallestViewportDim = Math.min(viewportWidth, viewportHeight);
-
-//             // Calculate target size (one-third of the smallest viewport dimension)
-//             const targetSize = smallestViewportDim / 3;
-
-//             // Calculate SVG original size
-//             const boxSize = box.getSize(new THREE.Vector3());
-//             const maxSvgDim = Math.max(boxSize.x, boxSize.y, boxSize.z);
-
-//             if (maxSvgDim > 0 && !isNaN(maxSvgDim)) {
-//               // Calculate scale to make SVG fit properly
-//               const scale = targetSize / maxSvgDim;
-//               svgGroup.scale.set(scale, scale, scale);
-//             }
-//           }
-
-//           // Position the rotation group at the center of the scene
-//           rotationGroup.position.set(0, 0, 0);
-//         } catch (error) {
-//           console.error("Error processing SVG group:", error);
-//         }
-
-//         // Now that SVG is processed, setup the handles
-//         setupHandles();
-
-//         // Save initial state for undo if implemented
-//         if (typeof saveTransformState === "function") {
-//           saveTransformState();
-//         }
-
-//         console.log("SVG processing complete");
-//       } else {
-//         console.error("No valid objects found in SVG");
-//       }
-
-//       // Create UI Controls
-//       createUIControls(svgGroup);
-//     },
-//     // Progress callback
-//     function (xhr) {
-//       console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
-//     },
-//     // Error callback
-//     function (error) {
-//       console.error("Error loading SVG:", error);
-//     }
-//   );
-// }
 
 function loadSVG(url) {
   // Store the URL for reloading
@@ -645,24 +559,38 @@ function loadSVG(url) {
       data.paths.forEach((path, pathIndex) => {
         try {
           counter++;
-          console.log("path :>> ", path);
-          // Get fill style from path
-          const fillColor = path.userData?.style?.fill;
-          const fillOpacity = path.userData?.style?.fillOpacity;
+          console.log("Processing path:", pathIndex);
 
-          // Skip paths with 'none' fill or with fillOpacity = 0
-          if (fillColor === "none" || fillOpacity === "0") {
-            console.log(`Skipping path ${pathIndex} with no fill`);
+          // Get style from path userData
+          const pathStyle = path.userData?.style || {};
+          const fillColor = pathStyle.fill;
+          const fillOpacity = pathStyle.fillOpacity;
+          const strokeColor = pathStyle.stroke;
+          const strokeOpacity = pathStyle.strokeOpacity;
+          const strokeWidth = parseFloat(pathStyle.strokeWidth) || 1;
+
+          console.log("Path style:", {
+            fill: fillColor,
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
+          });
+
+          // Skip paths with neither fill nor stroke
+          if (
+            (fillColor === "none" || !fillColor) &&
+            (strokeColor === "none" || !strokeColor)
+          ) {
+            console.log(`Skipping path ${pathIndex} with no fill or stroke`);
             return;
           }
 
-          // Create material based on fill color
-          let pathMaterial;
-          if (fillColor) {
-            // Try to parse the color from the SVG
+          // Process fill for paths that have fill
+          if (fillColor && fillColor !== "none") {
+            // Create fill material
+            let fillMaterial;
             try {
               const color = new THREE.Color(fillColor);
-              pathMaterial = new THREE.MeshPhongMaterial({
+              fillMaterial = new THREE.MeshPhongMaterial({
                 color: color,
                 side: THREE.DoubleSide,
                 flatShading: true,
@@ -671,85 +599,187 @@ function loadSVG(url) {
                   fillOpacity !== undefined ? parseFloat(fillOpacity) : 1,
               });
             } catch (e) {
-              // If color parsing fails, use default green
               console.warn(
-                `Couldn't parse color ${fillColor}, using default green`
+                `Couldn't parse fill color ${fillColor}, using default`
               );
-              pathMaterial = new THREE.MeshPhongMaterial({
+              fillMaterial = new THREE.MeshPhongMaterial({
                 color: 0x00ff00,
                 side: THREE.DoubleSide,
                 flatShading: true,
               });
             }
-          } else {
-            // Default material if no fill specified
-            pathMaterial = new THREE.MeshPhongMaterial({
-              color: 0x00ff00,
-              side: THREE.DoubleSide,
-              flatShading: true,
-            });
+
+            // Convert path to shapes without detecting holes
+            const shapes = path.toShapes(false);
+
+            if (shapes && shapes.length > 0) {
+              // Process each shape for fill
+              shapes.forEach((shape, shapeIndex) => {
+                try {
+                  if (!shape || !shape.curves || shape.curves.length === 0) {
+                    return;
+                  }
+
+                  // Extrusion settings
+                  const extrudeSettings = {
+                    depth: window.customExtrusionDepth || 10,
+                    bevelEnabled: false,
+                  };
+
+                  // Create geometry with extrusion
+                  const geometry = new THREE.ExtrudeGeometry(
+                    shape,
+                    extrudeSettings
+                  );
+
+                  // Check for invalid geometry
+                  if (hasNaN(geometry)) {
+                    console.warn(
+                      `Invalid geometry in path ${pathIndex}, shape ${shapeIndex}`
+                    );
+                    return;
+                  }
+
+                  // Create mesh
+                  const mesh = new THREE.Mesh(geometry, fillMaterial.clone());
+
+                  // Flip Y axis to match SVG coordinate system
+                  mesh.scale.y = -1;
+
+                  // Add to SVG group
+                  svgGroup.add(mesh);
+                  addedValidObject = true;
+
+                  console.log(
+                    `Added filled shape ${shapeIndex} from path ${pathIndex}`
+                  );
+                } catch (error) {
+                  console.warn(
+                    `Error creating filled shape ${shapeIndex} from path ${pathIndex}:`,
+                    error
+                  );
+                }
+              });
+            }
           }
 
-          // Convert path to shapes without detecting holes
-          const shapes = path.toShapes(false);
-
-          console.log("shapes :>> ", shapes);
-
-          if (!shapes || shapes.length === 0) {
-            return;
-          }
-
-          // Process each shape
-          shapes.forEach((shape, shapeIndex) => {
+          // Process stroke for paths that have stroke
+          if (strokeColor && strokeColor !== "none") {
             try {
-              if (!shape || !shape.curves || shape.curves.length === 0) {
-                return;
-              }
-
-              // Extrusion settings
-              const extrudeSettings = {
-                depth: window.customExtrusionDepth || 10,
-                bevelEnabled: false,
-              };
-
-              // Create geometry with extrusion
-              const geometry = new THREE.ExtrudeGeometry(
-                shape,
-                extrudeSettings
-              );
-
-              // Check for invalid geometry
-              if (hasNaN(geometry)) {
+              // Create stroke material
+              let strokeMaterial;
+              try {
+                const color = new THREE.Color(strokeColor);
+                strokeMaterial = new THREE.MeshPhongMaterial({
+                  color: color,
+                  side: THREE.DoubleSide,
+                  flatShading: true,
+                  transparent: strokeOpacity !== undefined && strokeOpacity < 1,
+                  opacity:
+                    strokeOpacity !== undefined ? parseFloat(strokeOpacity) : 1,
+                });
+              } catch (e) {
                 console.warn(
-                  `Invalid geometry in path ${pathIndex}, shape ${shapeIndex}`
+                  `Couldn't parse stroke color ${strokeColor}, using default`
                 );
-                return;
+                strokeMaterial = new THREE.MeshPhongMaterial({
+                  color: 0x444444,
+                  side: THREE.DoubleSide,
+                  flatShading: true,
+                });
               }
 
-              // Create mesh
-              const mesh = new THREE.Mesh(geometry, pathMaterial.clone());
+              // Get points from path subpaths
+              path.subPaths.forEach((subPath, subPathIndex) => {
+                const points = subPath.getPoints();
 
-              // Flip Y axis to match SVG coordinate system
-              mesh.scale.y = -1;
+                if (points.length < 2) {
+                  return; // Need at least 2 points for a line
+                }
 
-              // Add to SVG group
-              svgGroup.add(mesh);
-              addedValidObject = true;
+                console.log(
+                  `Processing stroke for subpath ${subPathIndex} with ${points.length} points`
+                );
 
-              console.log(`Added shape ${shapeIndex} from path ${pathIndex}`);
+                // Check if points are valid
+                if (!hasValidPoints(points)) {
+                  console.warn(`Invalid points in subpath ${subPathIndex}`);
+                  return;
+                }
+
+                // Create thick line shapes from points
+                const lineShapes = createThickLineFromPoints(
+                  points,
+                  strokeWidth || 1
+                );
+
+                if (!lineShapes || lineShapes.length === 0) {
+                  console.warn(
+                    `Failed to create line shapes for subpath ${subPathIndex}`
+                  );
+                  return;
+                }
+
+                // Process line shapes for strokes
+                lineShapes.forEach((lineShape, lineShapeIndex) => {
+                  try {
+                    // Extrusion settings for stroke
+                    const extrudeSettings = {
+                      depth: window.customExtrusionDepth || 10,
+                      bevelEnabled: false,
+                    };
+
+                    // Create geometry with extrusion
+                    const geometry = new THREE.ExtrudeGeometry(
+                      lineShape,
+                      extrudeSettings
+                    );
+
+                    // Check for invalid geometry
+                    if (hasNaN(geometry)) {
+                      console.warn(
+                        `Invalid geometry in stroke ${subPathIndex}, shape ${lineShapeIndex}`
+                      );
+                      return;
+                    }
+
+                    // Create mesh
+                    const mesh = new THREE.Mesh(
+                      geometry,
+                      strokeMaterial.clone()
+                    );
+
+                    // Flip Y axis to match SVG coordinate system
+                    mesh.scale.y = -1;
+
+                    // Add to SVG group
+                    svgGroup.add(mesh);
+                    addedValidObject = true;
+
+                    console.log(
+                      `Added stroke shape from subpath ${subPathIndex}`
+                    );
+                  } catch (error) {
+                    console.warn(
+                      `Error creating stroke shape from subpath ${subPathIndex}:`,
+                      error
+                    );
+                  }
+                });
+              });
             } catch (error) {
               console.warn(
-                `Error creating shape ${shapeIndex} from path ${pathIndex}:`,
+                `Error processing stroke for path ${pathIndex}:`,
                 error
               );
             }
-          });
+          }
         } catch (error) {
           console.warn(`Error processing path ${pathIndex}:`, error);
         }
       });
 
-      console.log("counter :>> ", counter);
+      console.log("Processed paths:", counter);
 
       // If we successfully added objects, add SVG group to rotation group
       if (addedValidObject) {
@@ -841,6 +871,234 @@ function loadSVG(url) {
   );
 }
 
+// function loadSVG(url) {
+//   // Store the URL for reloading
+//   window.lastLoadedSvgUrl = url;
+
+//   // Clear existing rotation group
+//   if (rotationGroup) {
+//     scene.remove(rotationGroup);
+//   }
+
+//   // Create a new rotation group
+//   rotationGroup = new THREE.Group();
+//   scene.add(rotationGroup);
+
+//   // Load the SVG with SVGLoader
+//   loader.load(
+//     url,
+//     function (data) {
+//       console.log("SVG loaded successfully");
+
+//       // Create SVG group to hold all meshes
+//       svgGroup = new THREE.Group();
+
+//       // Track if we successfully added any valid objects
+//       let addedValidObject = false;
+
+//       let counter = 0;
+
+//       // Process all paths from the SVG
+//       data.paths.forEach((path, pathIndex) => {
+//         try {
+//           counter++;
+//           console.log("path :>> ", path);
+//           // Get fill style from path
+//           const fillColor = path.userData?.style?.fill;
+//           const fillOpacity = path.userData?.style?.fillOpacity;
+
+//           // Skip paths with 'none' fill or with fillOpacity = 0
+//           if (fillColor === "none" || fillOpacity === "0") {
+//             console.log(`Skipping path ${pathIndex} with no fill`);
+//             return;
+//           }
+
+//           // Create material based on fill color
+//           let pathMaterial;
+//           if (fillColor) {
+//             console.log("fillColor :>> ", fillColor);
+//             // Try to parse the color from the SVG
+//             try {
+//               const color = new THREE.Color(fillColor);
+//               pathMaterial = new THREE.MeshPhongMaterial({
+//                 color: color,
+//                 side: THREE.DoubleSide,
+//                 flatShading: true,
+//                 transparent: fillOpacity !== undefined && fillOpacity < 1,
+//                 opacity:
+//                   fillOpacity !== undefined ? parseFloat(fillOpacity) : 1,
+//               });
+//             } catch (e) {
+//               // If color parsing fails, use default green
+//               console.warn(
+//                 `Couldn't parse color ${fillColor}, using default green`
+//               );
+//               pathMaterial = new THREE.MeshPhongMaterial({
+//                 color: 0x00ff00,
+//                 side: THREE.DoubleSide,
+//                 flatShading: true,
+//               });
+//             }
+//           } else {
+//             // Default material if no fill specified
+//             pathMaterial = new THREE.MeshPhongMaterial({
+//               color: 0x00ff00,
+//               side: THREE.DoubleSide,
+//               flatShading: true,
+//             });
+//           }
+
+//           // Convert path to shapes without detecting holes
+//           const shapes = path.toShapes(false);
+
+//           console.log("shapes :>> ", shapes);
+
+//           if (!shapes || shapes.length === 0) {
+//             return;
+//           }
+
+//           // Process each shape
+//           shapes.forEach((shape, shapeIndex) => {
+//             try {
+//               if (!shape || !shape.curves || shape.curves.length === 0) {
+//                 return;
+//               }
+
+//               // Extrusion settings
+//               const extrudeSettings = {
+//                 depth: window.customExtrusionDepth || 10,
+//                 bevelEnabled: false,
+//               };
+
+//               // Create geometry with extrusion
+//               const geometry = new THREE.ExtrudeGeometry(
+//                 shape,
+//                 extrudeSettings
+//               );
+
+//               // Check for invalid geometry
+//               if (hasNaN(geometry)) {
+//                 console.warn(
+//                   `Invalid geometry in path ${pathIndex}, shape ${shapeIndex}`
+//                 );
+//                 return;
+//               }
+
+//               // Create mesh
+//               const mesh = new THREE.Mesh(geometry, pathMaterial.clone());
+
+//               // Flip Y axis to match SVG coordinate system
+//               mesh.scale.y = -1;
+
+//               // Add to SVG group
+//               svgGroup.add(mesh);
+//               addedValidObject = true;
+
+//               console.log(`Added shape ${shapeIndex} from path ${pathIndex}`);
+//             } catch (error) {
+//               console.warn(
+//                 `Error creating shape ${shapeIndex} from path ${pathIndex}:`,
+//                 error
+//               );
+//             }
+//           });
+//         } catch (error) {
+//           console.warn(`Error processing path ${pathIndex}:`, error);
+//         }
+//       });
+
+//       console.log("counter :>> ", counter);
+
+//       // If we successfully added objects, add SVG group to rotation group
+//       if (addedValidObject) {
+//         // Add to rotation group
+//         rotationGroup.add(svgGroup);
+
+//         // Center and scale the group
+//         try {
+//           const box = new THREE.Box3();
+
+//           svgGroup.traverse(function (child) {
+//             if (child.isMesh) {
+//               child.geometry.computeBoundingBox();
+//               const childBox = child.geometry.boundingBox;
+
+//               if (
+//                 childBox &&
+//                 !isNaN(childBox.min.x) &&
+//                 !isNaN(childBox.min.y) &&
+//                 !isNaN(childBox.min.z) &&
+//                 !isNaN(childBox.max.x) &&
+//                 !isNaN(childBox.max.y) &&
+//                 !isNaN(childBox.max.z)
+//               ) {
+//                 childBox.applyMatrix4(child.matrixWorld);
+//                 box.union(childBox);
+//               } else {
+//                 console.warn("Invalid bounding box:", child);
+//               }
+//             }
+//           });
+
+//           if (box.min.x !== Infinity) {
+//             // Center the SVG at local origin
+//             const center = box.getCenter(new THREE.Vector3());
+//             svgGroup.position.sub(center);
+
+//             // Calculate scale to make it fit nicely in the viewport
+//             const viewportWidth = camera.right - camera.left;
+//             const viewportHeight = camera.top - camera.bottom;
+
+//             // Calculate the smallest dimension (width or height)
+//             const smallestViewportDim = Math.min(viewportWidth, viewportHeight);
+
+//             // Calculate target size (one-third of the smallest viewport dimension)
+//             const targetSize = smallestViewportDim / 3;
+
+//             // Calculate SVG original size
+//             const boxSize = box.getSize(new THREE.Vector3());
+//             const maxSvgDim = Math.max(boxSize.x, boxSize.y, boxSize.z);
+
+//             if (maxSvgDim > 0 && !isNaN(maxSvgDim)) {
+//               // Calculate scale to make SVG fit properly
+//               const scale = targetSize / maxSvgDim;
+//               svgGroup.scale.set(scale, scale, scale);
+//             }
+//           }
+
+//           // Position the rotation group at the center of the scene
+//           rotationGroup.position.set(0, 0, 0);
+//         } catch (error) {
+//           console.error("Error processing SVG group:", error);
+//         }
+
+//         // Now that SVG is processed, setup the handles
+//         setupHandles();
+
+//         // Save initial state for undo if implemented
+//         if (typeof saveTransformState === "function") {
+//           saveTransformState();
+//         }
+
+//         console.log("SVG processing complete");
+//       } else {
+//         console.error("No valid objects found in SVG");
+//       }
+
+//       // Create UI Controls
+//       createUIControls(svgGroup);
+//     },
+//     // Progress callback
+//     function (xhr) {
+//       console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
+//     },
+//     // Error callback
+//     function (error) {
+//       console.error("Error loading SVG:", error);
+//     }
+//   );
+// }
+
 // Add a helper function to debug SVG paths
 function debugSVG(url) {
   loader.load(
@@ -900,6 +1158,7 @@ function createUIControls(svgGroup) {
       <button class="color-btn" data-color="0xFFFF00" style="background:#FFFF00; width:30px; height:30px; border:1px solid #444"></button>
       <button class="color-btn" data-color="0xFF00FF" style="background:#FF00FF; width:30px; height:30px; border:1px solid #444"></button>
       <button class="color-btn" data-color="0x00FFFF" style="background:#00FFFF; width:30px; height:30px; border:1px solid #444"></button>
+      <button class="color-btn" data-color="0xFFD700" style="background:#FFD700; width:30px; height:30px; border:1px solid #444"></button>
     </div>
   `;
   container.appendChild(colorSection);
@@ -969,17 +1228,51 @@ function createUIControls(svgGroup) {
   reloadButton.style.marginTop = "5px";
   container.appendChild(reloadButton);
 
-  // Add event listeners
-
-  // Path color buttons
+  // Path color buttons with fixed handling
   document.querySelectorAll(".color-btn").forEach((button) => {
     button.addEventListener("click", () => {
-      const color = parseInt(button.dataset.color);
+      const colorHex = button.dataset.color;
+      // Parse the hex color to an integer (e.g., "0xFF0000" -> 16711680)
+      const colorInt = parseInt(colorHex);
+
+      // Create a Three.js color object
+      const threeColor = new THREE.Color(colorInt);
+
+      // Apply to all mesh materials
       svgGroup.traverse((child) => {
-        if (child.isMesh) {
-          child.material.color.set(color);
+        console.log("child :>> ", child);
+        if (child.isMesh && child.material) {
+          console.log("child.material :>> ", child.material);
+          if (Array.isArray(child.material)) {
+            // Handle multi-material
+            child.material.forEach((mat) => {
+              if (mat.color) {
+                mat.color.copy(threeColor);
+                mat.needsUpdate = true;
+              }
+            });
+          } else {
+            // Single material
+            if (child.material.color) {
+              console.log("threeColor :>> ", threeColor);
+              child.material.color.copy(threeColor);
+              child.material.needsUpdate = true;
+
+              console.log("child.material xxxxxx ", child.material);
+            }
+          }
         }
       });
+
+      // Log the color change for debugging
+      console.log(
+        "Changed color to:",
+        colorHex,
+        "RGB:",
+        threeColor.r.toFixed(2),
+        threeColor.g.toFixed(2),
+        threeColor.b.toFixed(2)
+      );
     });
   });
 
@@ -1074,7 +1367,7 @@ function animate() {
 // Start the application
 function init() {
   // Load the SVG
-  loadSVG("../assets/vector2.svg");
+  loadSVG("../assets/map-test.svg");
   // Start animation loop
   animate();
 }
