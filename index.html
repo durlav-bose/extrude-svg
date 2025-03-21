@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -16,6 +16,489 @@
     </style>
   </head>
   <body>
-    <script type="module" src="src/claude.js"></script>
+    <script type="module" src="src/metalness.js"></script>
+  </body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SVG Extrusion with Metalness</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #1a1a1a;
+        font-family: Arial, sans-serif;
+        color: #ffffff;
+      }
+
+      #svg-controls {
+        /* position: absolute;
+        top: 10px;
+        left: 10px; */
+        background: rgba(0, 0, 0, 0.7);
+        padding: 15px;
+        border-radius: 5px;
+        color: white;
+        font-family: Arial, sans-serif;
+        z-index: 1000;
+        max-width: 350px;
+        max-height: 100vh;
+        overflow-y: auto;
+      }
+
+      .control-section {
+        border: 1px solid #444;
+        border-radius: 3px;
+        padding: 8px;
+        margin-bottom: 15px;
+      }
+
+      .section-title {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+
+      button, input[type="button"] {
+        cursor: pointer;
+      }
+
+      .color-btn, .ambient-color-btn, .main-color-btn, 
+      .back-color-btn, .fill-color-btn, .bottom-color-btn, .point-color-btn, .bg-btn {
+        width: 30px;
+        height: 30px;
+        border: 1px solid #444;
+      }
+
+      .collapsible {
+        cursor: pointer;
+        padding: 5px;
+        width: 100%;
+        border: none;
+        text-align: left;
+        outline: none;
+        font-weight: bold;
+        background-color: rgba(70, 70, 70, 0.7);
+        margin-bottom: 5px;
+      }
+
+      .collapsible-content {
+        padding: 0 10px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.2s ease-out;
+      }
+
+      .container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 40px;
+        max-width: 1200px;
+        margin: auto;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Controls Panel -->
+    <div class="container">
+      <div id="svg-controls">
+        <!-- Color Controls -->
+        <div class="control-section">
+          <label class="section-title">Path Color:</label>
+          <div style="display:flex; gap:5px; flex-wrap:wrap">
+            <button class="color-btn" data-color="0x00FF00" style="background:#00FF00;"></button>
+            <button class="color-btn" data-color="0xFF0000" style="background:#FF0000;"></button>
+            <button class="color-btn" data-color="0x0000FF" style="background:#0000FF;"></button>
+            <button class="color-btn" data-color="0xFFFF00" style="background:#FFFF00;"></button>
+            <button class="color-btn" data-color="0xFF00FF" style="background:#FF00FF;"></button>
+            <button class="color-btn" data-color="0x00FFFF" style="background:#00FFFF;"></button>
+            <button class="color-btn" data-color="0xFFD700" style="background:#FFD700;"></button>
+          </div>
+        </div>
+  
+        <!-- Extrusion Controls -->
+        <div class="control-section">
+          <label class="section-title">Extrusion Depth:</label>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <div style="display:flex; align-items:center; gap:10px">
+              <input type="range" id="extrusion-depth" min="1" max="30" value="10" style="flex-grow:1">
+              <span id="depth-value" style="min-width:25px; text-align:right">10</span>
+            </div>
+            <button id="apply-depth" style="padding:5px">Apply Depth</button>
+          </div>
+        </div>
+  
+        <!-- Background Controls -->
+        <div class="control-section">
+          <label class="section-title">Background:</label>
+          <div style="display:flex; gap:5px; flex-wrap:wrap">
+            <button class="bg-btn" data-color="0x000000" style="background:#000000;"></button>
+            <button class="bg-btn" data-color="0x222222" style="background:#222222;"></button>
+            <button class="bg-btn" data-color="0x444444" style="background:#444444;"></button>
+            <button class="bg-btn" data-color="0xFFFFFF" style="background:#FFFFFF;"></button>
+          </div>
+        </div>
+  
+        <!-- Handles Controls -->
+        <div class="control-section">
+          <label class="section-title">Manipulation:</label>
+          <div>
+            <button id="toggle-handles" style="width:100%; padding:5px">Toggle Handles</button>
+          </div>
+        </div>
+  
+        <!-- Material Properties -->
+        <div class="control-section">
+          <label class="section-title">Material Properties:</label>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div>
+              <label style="display:block; margin-bottom:2px">Metalness:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="metalness-slider" min="0" max="1" step="0.1" value="0.5" style="flex-grow:1">
+                <span id="metalness-value" style="min-width:25px; text-align:right">0.5</span>
+              </div>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Roughness:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="roughness-slider" min="0" max="1" step="0.1" value="0.5" style="flex-grow:1">
+                <span id="roughness-value" style="min-width:25px; text-align:right">0.5</span>
+              </div>
+            </div>
+            <button id="apply-material" style="padding:5px; margin-top:5px">Apply Material</button>
+          </div>
+        </div>
+  
+        <!-- Export Controls -->
+        <div class="control-section">
+          <label class="section-title">Export:</label>
+          <div style="display:flex; gap:5px">
+            <button id="export-gltf" style="flex:1; padding:5px">GLTF</button>
+            <button id="export-obj" style="flex:1; padding:5px">OBJ</button>
+            <button id="export-stl" style="flex:1; padding:5px">STL</button>
+          </div>
+          <div style="margin-top:5px">
+            <button id="take-screenshot" style="width:100%; padding:5px">Screenshot</button>
+          </div>
+        </div>
+  
+        <!-- Lighting Controls -->
+        <button class="collapsible">Lighting Controls</button>
+        <div class="collapsible-content">
+          <!-- Ambient Light -->
+          <div class="control-section">
+            <label style="display:flex; justify-content:space-between; margin-bottom:5px;">
+              <span>Ambient Light</span>
+              <span>
+                <input type="checkbox" id="ambient-light-enabled" checked>
+                <label for="ambient-light-enabled">Enable</label>
+              </span>
+            </label>
+            <div>
+              <label style="display:block; margin-bottom:2px">Intensity:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="ambient-intensity" min="0" max="1" step="0.05" value="0.5" style="flex-grow:1">
+                <span id="ambient-value" style="min-width:25px; text-align:right">0.5</span>
+              </div>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Color:</label>
+              <div style="display:flex; gap:5px; flex-wrap:wrap">
+                <button class="ambient-color-btn" data-color="0xFFFFFF" style="background:#FFFFFF;"></button>
+                <button class="ambient-color-btn" data-color="0xFFF8E1" style="background:#FFF8E1;"></button>
+                <button class="ambient-color-btn" data-color="0xE1F5FE" style="background:#E1F5FE;"></button>
+                <button class="ambient-color-btn" data-color="0xF3E5F5" style="background:#F3E5F5;"></button>
+              </div>
+            </div>
+          </div>
+  
+          <!-- Main Light -->
+          <div class="control-section">
+            <label style="display:flex; justify-content:space-between; margin-bottom:5px;">
+              <span>Main Light</span>
+              <span>
+                <input type="checkbox" id="main-light-enabled" checked>
+                <label for="main-light-enabled">Enable</label>
+              </span>
+            </label>
+            <div>
+              <label style="display:block; margin-bottom:2px">Intensity:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="main-intensity" min="0" max="2" step="0.1" value="1.0" style="flex-grow:1">
+                <span id="main-value" style="min-width:25px; text-align:right">1.0</span>
+              </div>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Position:</label>
+              <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                <div style="flex: 1; min-width: 60px;">
+                  <label style="display:block; font-size: 0.8em;">X</label>
+                  <input type="range" id="main-x-pos" min="-5" max="5" step="0.1" value="1.0" style="width: 100%">
+                  <span id="main-x-value" style="font-size: 0.8em;">1.0</span>
+                </div>
+                <div style="flex: 1; min-width: 60px;">
+                  <label style="display:block; font-size: 0.8em;">Y</label>
+                  <input type="range" id="main-y-pos" min="-5" max="5" step="0.1" value="1.0" style="width: 100%">
+                  <span id="main-y-value" style="font-size: 0.8em;">1.0</span>
+                </div>
+                <div style="flex: 1; min-width: 60px;">
+                  <label style="display:block; font-size: 0.8em;">Z</label>
+                  <input type="range" id="main-z-pos" min="-5" max="5" step="0.1" value="1.0" style="width: 100%">
+                  <span id="main-z-value" style="font-size: 0.8em;">1.0</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 8px;">
+              <label style="display:flex; align-items:center; gap:5px;">
+                <input type="checkbox" id="main-cast-shadow" checked>
+                <span>Cast Shadows</span>
+              </label>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Color:</label>
+              <div style="display:flex; gap:5px; flex-wrap:wrap">
+                <button class="main-color-btn" data-color="0xFFFFFF" style="background:#FFFFFF;"></button>
+                <button class="main-color-btn" data-color="0xFFF8E1" style="background:#FFF8E1;"></button>
+                <button class="main-color-btn" data-color="0xE1F5FE" style="background:#E1F5FE;"></button>
+                <button class="main-color-btn" data-color="0xF3E5F5" style="background:#F3E5F5;"></button>
+              </div>
+            </div>
+          </div>
+  
+          <!-- Back Light Controls -->
+          <div style="border: 1px solid #444; border-radius: 3px; padding: 8px; margin-bottom: 8px;">
+            <label style="display:flex; justify-content:space-between; margin-bottom:5px; font-weight:bold">
+              <span>Back Light</span>
+              <span>
+                <input type="checkbox" id="back-light-enabled" checked>
+                <label for="back-light-enabled">Enable</label>
+              </span>
+            </label>
+            <div>
+              <label style="display:block; margin-bottom:2px">Intensity:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="back-intensity" min="0" max="2" step="0.1" value="0.5" style="flex-grow:1">
+                <span id="back-value" style="min-width:25px; text-align:right">0.5</span>
+              </div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+              <div style="flex: 1; min-width: 120px;">
+                <label style="display:block; margin-bottom:2px">X Position:</label>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <input type="range" id="back-x-pos" min="-5" max="5" step="0.1" value="-1.0" style="flex-grow:1">
+                  <span id="back-x-value" style="min-width:25px; text-align:right">-1.0</span>
+                </div>
+              </div>
+              <div style="flex: 1; min-width: 120px;">
+                <label style="display:block; margin-bottom:2px">Y Position:</label>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <input type="range" id="back-y-pos" min="-5" max="5" step="0.1" value="0.5" style="flex-grow:1">
+                  <span id="back-y-value" style="min-width:25px; text-align:right">0.5</span>
+                </div>
+              </div>
+              <div style="flex: 1; min-width: 120px;">
+                <label style="display:block; margin-bottom:2px">Z Position:</label>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <input type="range" id="back-z-pos" min="-5" max="5" step="0.1" value="-1.0" style="flex-grow:1">
+                  <span id="back-z-value" style="min-width:25px; text-align:right">-1.0</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 8px;">
+              <label style="display:flex; align-items:center; gap:5px;">
+                <input type="checkbox" id="back-cast-shadow" checked>
+                <span>Cast Shadows</span>
+              </label>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Color:</label>
+              <div style="display:flex; gap:5px; flex-wrap:wrap">
+                <button class="back-color-btn" data-color="0xFFFFFF" style="background:#FFFFFF; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="back-color-btn" data-color="0xFFF8E1" style="background:#FFF8E1; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="back-color-btn" data-color="0xE1F5FE" style="background:#E1F5FE; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="back-color-btn" data-color="0xF3E5F5" style="background:#F3E5F5; width:25px; height:25px; border:1px solid #444"></button>
+              </div>
+            </div>
+          </div>
+  
+          <!-- Fill Light Controls (Simplified) -->
+          <div style="border: 1px solid #444; border-radius: 3px; padding: 8px; margin-bottom: 8px;">
+            <label style="display:flex; justify-content:space-between; margin-bottom:5px; font-weight:bold">
+              <span>Fill Light</span>
+              <span>
+                <input type="checkbox" id="fill-light-enabled" checked>
+                <label for="fill-light-enabled">Enable</label>
+              </span>
+            </label>
+            <div>
+              <label style="display:block; margin-bottom:2px">Intensity:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="fill-intensity" min="0" max="2" step="0.1" value="0.3" style="flex-grow:1">
+                <span id="fill-value" style="min-width:25px; text-align:right">0.3</span>
+              </div>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Color:</label>
+              <div style="display:flex; gap:5px; flex-wrap:wrap">
+                <button class="fill-color-btn" data-color="0xFFFFFF" style="background:#FFFFFF; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="fill-color-btn" data-color="0xFFF8E1" style="background:#FFF8E1; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="fill-color-btn" data-color="0xE1F5FE" style="background:#E1F5FE; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="fill-color-btn" data-color="0xF3E5F5" style="background:#F3E5F5; width:25px; height:25px; border:1px solid #444"></button>
+              </div>
+            </div>
+          </div>
+  
+          <!-- Bottom Light Controls (Simplified) -->
+          <div style="border: 1px solid #444; border-radius: 3px; padding: 8px; margin-bottom: 8px;">
+            <label style="display:flex; justify-content:space-between; margin-bottom:5px; font-weight:bold">
+              <span>Bottom Light</span>
+              <span>
+                <input type="checkbox" id="bottom-light-enabled" checked>
+                <label for="bottom-light-enabled">Enable</label>
+              </span>
+            </label>
+            <div>
+              <label style="display:block; margin-bottom:2px">Intensity:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="bottom-intensity" min="0" max="2" step="0.1" value="0.2" style="flex-grow:1">
+                <span id="bottom-value" style="min-width:25px; text-align:right">0.2</span>
+              </div>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Color:</label>
+              <div style="display:flex; gap:5px; flex-wrap:wrap">
+                <button class="bottom-color-btn" data-color="0xFFFFFF" style="background:#FFFFFF; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="bottom-color-btn" data-color="0xFFF8E1" style="background:#FFF8E1; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="bottom-color-btn" data-color="0xE1F5FE" style="background:#E1F5FE; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="bottom-color-btn" data-color="0xF3E5F5" style="background:#F3E5F5; width:25px; height:25px; border:1px solid #444"></button>
+              </div>
+            </div>
+          </div>
+  
+          <!-- Point Light -->
+          <div style="border: 1px solid #444; border-radius: 3px; padding: 8px; margin-bottom: 8px;">
+            <label style="display:flex; justify-content:space-between; margin-bottom:5px; font-weight:bold">
+              <span>Point Light</span>
+              <span>
+                <input type="checkbox" id="point-light-enabled" checked>
+                <label for="point-light-enabled">Enable</label>
+              </span>
+            </label>
+            <div>
+              <label style="display:block; margin-bottom:2px">Intensity:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="point-intensity" min="0" max="2" step="0.1" value="0.5" style="flex-grow:1">
+                <span id="point-value" style="min-width:25px; text-align:right">0.5</span>
+              </div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+              <div style="flex: 1; min-width: 120px;">
+                <label style="display:block; margin-bottom:2px">X Position:</label>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <input type="range" id="point-x-pos" min="-100" max="100" step="1" value="0" style="flex-grow:1">
+                  <span id="point-x-value" style="min-width:25px; text-align:right">0</span>
+                </div>
+              </div>
+              <div style="flex: 1; min-width: 120px;">
+                <label style="display:block; margin-bottom:2px">Y Position:</label>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <input type="range" id="point-y-pos" min="-100" max="100" step="1" value="0" style="flex-grow:1">
+                  <span id="point-y-value" style="min-width:25px; text-align:right">0</span>
+                </div>
+              </div>
+              <div style="flex: 1; min-width: 120px;">
+                <label style="display:block; margin-bottom:2px">Z Position:</label>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <input type="range" id="point-z-pos" min="-100" max="100" step="1" value="50" style="flex-grow:1">
+                  <span id="point-z-value" style="min-width:25px; text-align:right">50</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 8px;">
+              <label style="display:block; margin-bottom:2px">Distance (range):</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="point-distance" min="0" max="1000" step="10" value="300" style="flex-grow:1">
+                <span id="point-distance-value" style="min-width:25px; text-align:right">300</span>
+              </div>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Decay:</label>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input type="range" id="point-decay" min="0" max="5" step="0.1" value="2" style="flex-grow:1">
+                <span id="point-decay-value" style="min-width:25px; text-align:right">2.0</span>
+              </div>
+            </div>
+            <div style="margin-top: 8px;">
+              <label style="display:flex; align-items:center; gap:5px;">
+                <input type="checkbox" id="point-cast-shadow" checked>
+                <span>Cast Shadows</span>
+              </label>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:2px">Color:</label>
+              <div style="display:flex; gap:5px; flex-wrap:wrap">
+                <button class="point-color-btn" data-color="0xFFFFFF" style="background:#FFFFFF; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="point-color-btn" data-color="0xFFF8E1" style="background:#FFF8E1; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="point-color-btn" data-color="0xE1F5FE" style="background:#E1F5FE; width:25px; height:25px; border:1px solid #444"></button>
+                <button class="point-color-btn" data-color="0xF3E5F5" style="background:#F3E5F5; width:25px; height:25px; border:1px solid #444"></button>
+              </div>
+            </div>
+          </div>
+  
+          <!-- Global Light Settings -->
+        <div style="border: 1px solid #444; border-radius: 3px; padding: 8px; margin-bottom: 8px;">
+          <label style="display:block; margin-bottom:5px; font-weight:bold">Global Light Settings:</label>
+          <div style="margin-top: 8px;">
+            <label style="display:flex; align-items:center; gap:5px;">
+              <input type="checkbox" id="global-shadow" checked>
+              <span>Enable Shadows</span>
+            </label>
+          </div>
+          <button id="reset-lights" style="margin-top: 8px; padding: 5px 10px; width: 100%;">Reset All Lights</button>
+        </div>
+        </div>
+  
+        <!-- Reload SVG Button -->
+        <button id="reload-svg" style="width:100%; padding:8px; margin-top:15px">Reload SVG</button>
+      </div>
+  
+      <div class="canvas-container">
+        <canvas id="canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Collapsible sections script -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        var coll = document.getElementsByClassName("collapsible");
+        for (var i = 0; i < coll.length; i++) {
+          coll[i].addEventListener("click", function() {
+            this.classList.toggle("active");
+            var content = this.nextElementSibling;
+            if (content.style.maxHeight) {
+              content.style.maxHeight = null;
+            } else {
+              content.style.maxHeight = content.scrollHeight + "px";
+            }
+          });
+        }
+      });
+    </script>
+
+    <!-- Main script -->
+    <script type="module" src="src/metalness.js"></script>
   </body>
 </html>
