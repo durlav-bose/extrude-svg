@@ -5,10 +5,12 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
 import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter";
 import { DragControls } from "three/examples/jsm/controls/DragControls";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
+let threeColor = new THREE.Color(0x00ff00);
 // Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111111);
+scene.background = new THREE.Color(0x111111); // Default background until HDR loads
 
 // Camera setup
 const cameraHeight = 700;
@@ -26,19 +28,27 @@ const camera = new THREE.OrthographicCamera(
 );
 camera.position.z = 200; // Move camera back for better view
 
-// Renderer setup
+// Create renderer first (you'll need it for the PMREMGenerator)
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   preserveDrawingBuffer: true,
   physicallyCorrectLights: true,
   canvas: document.querySelector("#canvas"),
 });
+
 renderer.setSize(700, 700);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputEncoding = THREE.sRGBEncoding;
 
 window.renderer = renderer;
+
+// Load HDR environment map
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+pmremGenerator.compileEquirectangularShader();
 
 // Ambient light - general illumination
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -290,36 +300,29 @@ function createRotationHandle() {
 }
 
 function setupHandles() {
-  // Calculate bounding box of SVG to get its dimensions and center
+  // Calculate bounding box of SVG
   const bbox = new THREE.Box3().setFromObject(svgGroup);
-
-  // Get dimensions
   const svgSize = bbox.getSize(new THREE.Vector3());
   const svgWidth = svgSize.x;
   const svgHeight = svgSize.y;
 
-  // Get center position
+  // Get center position in world coordinates
   const svgCenter = bbox.getCenter(new THREE.Vector3());
-
-  // Center the SVG at origin first
   svgGroup.position.sub(svgCenter);
 
-  // Update the rotation group position to place the SVG at its original location
-  rotationGroup.position.add(svgCenter);
+  // Position the rotation group at the center of the viewport
+  rotationGroup.position.set(0, 0, 0);
 
-  // Create movement handle
+  // Create and position the handles
   movementHandle = createMovementHandle();
   scene.add(movementHandle);
-
-  // Position movement handle at the center of the SVG in world space
-  movementHandle.position.copy(rotationGroup.position);
-  movementHandle.position.z = 5;
+  movementHandle.position.set(0, 0, 5); // Center of viewport
 
   // Create rotation handle
   rotationHandle = createRotationHandle();
   rotationGroup.add(rotationHandle);
 
-  // Position rotation handle at the edge using local coordinates
+  // Position rotation handle at the edge
   const handleOffset = {
     x: svgWidth / 2 + 20,
     y: svgHeight / 2 + 20,
@@ -646,26 +649,29 @@ function loadSVG(url) {
             let fillMaterial;
             try {
               const color = new THREE.Color(fillColor);
-              fillMaterial = new THREE.MeshPhongMaterial({
+              threeColor = color;
+              console.log("threeColor ------------- ", threeColor);
+
+              fillMaterial = new THREE.MeshStandardMaterial({
                 color: color,
                 side: THREE.DoubleSide,
                 flatShading: true,
                 transparent: fillOpacity !== undefined && fillOpacity < 1,
                 opacity:
                   fillOpacity !== undefined ? parseFloat(fillOpacity) : 1,
-                metalness: window.customMetalness || 1.0,
-                roughness: window.customRoughness || 1.0,
+                metalness: window.customMetalness || 0.8,
+                roughness: window.customRoughness || 0.2,
               });
             } catch (e) {
               console.warn(
                 `Couldn't parse fill color ${fillColor}, using default`
               );
-              fillMaterial = new THREE.MeshPhongMaterial({
+              fillMaterial = new THREE.MeshStandardMaterial({
                 color: 0x00ff00,
                 side: THREE.DoubleSide,
                 flatShading: true,
-                metalness: window.customMetalness || 0.5,
-                roughness: window.customRoughness || 0.5,
+                metalness: window.customMetalness || 0.8,
+                roughness: window.customRoughness || 0.2,
               });
             }
 
@@ -733,26 +739,26 @@ function loadSVG(url) {
               let strokeMaterial;
               try {
                 const color = new THREE.Color(strokeColor);
-                strokeMaterial = new THREE.MeshPhongMaterial({
+                strokeMaterial = new THREE.MeshStandardMaterial({
                   color: color,
                   side: THREE.DoubleSide,
                   flatShading: true,
                   transparent: strokeOpacity !== undefined && strokeOpacity < 1,
                   opacity:
                     strokeOpacity !== undefined ? parseFloat(strokeOpacity) : 1,
-                  metalness: window.customMetalness || 0.5,
-                  roughness: window.customRoughness || 0.5,
+                  metalness: window.customMetalness || 0.8,
+                  roughness: window.customRoughness || 0.2,
                 });
               } catch (e) {
                 console.warn(
                   `Couldn't parse stroke color ${strokeColor}, using default`
                 );
-                strokeMaterial = new THREE.MeshPhongMaterial({
+                strokeMaterial = new THREE.MeshStandardMaterial({
                   color: 0x444444,
                   side: THREE.DoubleSide,
                   flatShading: true,
-                  metalness: window.customMetalness || 0.5,
-                  roughness: window.customRoughness || 0.5,
+                  metalness: window.customMetalness || 0.8,
+                  roughness: window.customRoughness || 0.2,
                 });
               }
 
@@ -904,20 +910,12 @@ function loadSVG(url) {
               svgGroup.scale.set(scale, scale, scale);
             }
           }
-
-          // Position the rotation group at the center of the scene
-          rotationGroup.position.set(0, 0, 0);
         } catch (error) {
           console.error("Error processing SVG group:", error);
         }
 
         // Now that SVG is processed, setup the handles
         setupHandles();
-
-        // Save initial state for undo if implemented
-        if (typeof saveTransformState === "function") {
-          saveTransformState();
-        }
 
         console.log("SVG processing complete");
       } else {
@@ -940,8 +938,6 @@ function loadSVG(url) {
 
 // Enhanced UI controls
 function createUIControls(svgGroup) {
-  console.log("Creating UI controls 1");
-
   // Path color buttons with fixed handling
   document.querySelectorAll(".color-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -950,7 +946,7 @@ function createUIControls(svgGroup) {
       const colorInt = parseInt(colorHex);
 
       // Create a Three.js color object
-      const threeColor = new THREE.Color(colorInt);
+      threeColor = new THREE.Color(colorInt);
 
       // Apply to all mesh materials
       svgGroup.traverse((child) => {
@@ -985,18 +981,12 @@ function createUIControls(svgGroup) {
     });
   });
 
-  console.log("Creating UI controls 2");
-
   let exDepth = document.getElementById("extrusion-depth");
-  console.log("exDepth :>> ", exDepth);
 
   // Extrusion depth control
   document.getElementById("extrusion-depth").addEventListener("input", (e) => {
-    console.log("e :>> ", e);
     document.getElementById("depth-value").textContent = e.target.value;
   });
-
-  console.log("Creating UI controls 3");
 
   document.getElementById("apply-depth").addEventListener("click", () => {
     const depth = parseInt(document.getElementById("extrusion-depth").value);
@@ -1009,8 +999,6 @@ function createUIControls(svgGroup) {
     }
   });
 
-  console.log("Creating UI controls 4");
-
   // Background color buttons
   document.querySelectorAll(".bg-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1018,8 +1006,6 @@ function createUIControls(svgGroup) {
       scene.background = new THREE.Color(color);
     });
   });
-
-  console.log("Creating UI controls 5");
 
   // Handle visibility toggle
   document.getElementById("toggle-handles").addEventListener("click", () => {
@@ -1029,33 +1015,23 @@ function createUIControls(svgGroup) {
     }
   });
 
-  console.log("Creating UI controls 6");
-
   // Export buttons
   document.getElementById("export-gltf").addEventListener("click", () => {
     exportToGLTF(svgGroup);
   });
 
-  console.log("Creating UI controls 7");
-
   document.getElementById("export-obj").addEventListener("click", () => {
     exportToOBJ(svgGroup);
   });
-
-  console.log("Creating UI controls 8");
 
   document.getElementById("export-stl").addEventListener("click", () => {
     exportToSTL(svgGroup);
   });
 
-  console.log("Creating UI controls 9");
-
   // Screenshot button
   document.getElementById("take-screenshot").addEventListener("click", () => {
     takeScreenshot();
   });
-
-  console.log("Creating UI controls 10");
 
   // Reload button
   document.getElementById("reload-svg").addEventListener("click", () => {
@@ -1066,8 +1042,6 @@ function createUIControls(svgGroup) {
     }
   });
 
-  console.log("Creating UI controls 11");
-
   // Add event listeners for material properties
   document.getElementById("metalness-slider").addEventListener("input", (e) => {
     document.getElementById("metalness-value").textContent = e.target.value;
@@ -1077,8 +1051,6 @@ function createUIControls(svgGroup) {
     applyMaterialProperties();
   });
 
-  console.log("Creating UI controls 12");
-
   document.getElementById("roughness-slider").addEventListener("input", (e) => {
     document.getElementById("roughness-value").textContent = e.target.value;
     window.customRoughness = parseFloat(e.target.value);
@@ -1087,14 +1059,67 @@ function createUIControls(svgGroup) {
     applyMaterialProperties();
   });
 
-  console.log("Creating UI controls 13");
-
   document.getElementById("apply-material").addEventListener("click", () => {
     applyMaterialProperties();
   });
 
-  console.log("Creating UI controls 14");
+  document
+    .getElementById("apply-material-type")
+    .addEventListener("click", () => {
+      const materialType = document.getElementById("material-select").value;
+      applyMaterialType(materialType, svgGroup);
+    });
+
   createLightingControls();
+}
+
+function applyMaterialType(type, group) {
+  if (!group) return;
+
+  let material;
+
+  switch (type) {
+    case "metal":
+      material = new THREE.MeshStandardMaterial({
+        color: threeColor || 0x156289,
+        metalness: 0.9,
+        roughness: 0.2,
+      });
+      break;
+    case "plastic":
+      material = new THREE.MeshStandardMaterial({
+        color: threeColor || 0x156289,
+        metalness: 0.0,
+        roughness: 0.4,
+      });
+      break;
+    case "glass":
+      material = new THREE.MeshPhysicalMaterial({
+        color: threeColor || 0x156289,
+        metalness: 0.0,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.6,
+        transmission: 0.9,
+      });
+      break;
+    case "wood":
+      // You'd need to load the texture first
+      material = new THREE.MeshStandardMaterial({
+        color: threeColor || 0x156289,
+        metalness: 0.0,
+        roughness: 0.8,
+      });
+      break;
+  }
+
+  // Apply the material to all meshes
+  group.traverse((child) => {
+    if (child.isMesh) {
+      child.material = material;
+      child.material.needsUpdate = true;
+    }
+  });
 }
 
 function createLightingControls() {
@@ -1105,18 +1130,13 @@ function createLightingControls() {
       window.lights.ambient.visible = e.target.checked;
     });
 
-  console.log("light 1");
-
   document
     .getElementById("ambient-intensity")
     .addEventListener("input", (e) => {
       const value = parseFloat(e.target.value);
       document.getElementById("ambient-value").textContent = value.toFixed(1);
       window.lights.ambient.intensity = value;
-      console.log("window.lights.ambient :>> ", window.lights.ambient);
     });
-
-  console.log("light 2");
 
   document.querySelectorAll(".ambient-color-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1127,8 +1147,6 @@ function createLightingControls() {
     });
   });
 
-  console.log("light 3");
-
   // Main Directional Light
   document
     .getElementById("main-light-enabled")
@@ -1136,15 +1154,11 @@ function createLightingControls() {
       window.lights.main.visible = e.target.checked;
     });
 
-  console.log("light 4");
-
   document.getElementById("main-intensity").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
     document.getElementById("main-value").textContent = value.toFixed(1);
     window.lights.main.intensity = value;
   });
-
-  console.log("light 5");
 
   document.getElementById("main-x-pos").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
@@ -1152,15 +1166,11 @@ function createLightingControls() {
     window.lights.main.position.x = value;
   });
 
-  console.log("light 6");
-
   document.getElementById("main-y-pos").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
     document.getElementById("main-y-value").textContent = value.toFixed(1);
     window.lights.main.position.y = value;
   });
-
-  console.log("light 7");
 
   document.getElementById("main-z-pos").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
@@ -1168,15 +1178,11 @@ function createLightingControls() {
     window.lights.main.position.z = value;
   });
 
-  console.log("light 8");
-
   document
     .getElementById("main-cast-shadow")
     .addEventListener("change", (e) => {
       window.lights.main.castShadow = e.target.checked;
     });
-
-  console.log("light 9");
 
   document.querySelectorAll(".main-color-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1187,8 +1193,6 @@ function createLightingControls() {
     });
   });
 
-  console.log("light 10");
-
   // Back Light
   document
     .getElementById("back-light-enabled")
@@ -1196,15 +1200,11 @@ function createLightingControls() {
       window.lights.back.visible = e.target.checked;
     });
 
-  console.log("light 11");
-
   document.getElementById("back-intensity").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
     document.getElementById("back-value").textContent = value.toFixed(1);
     window.lights.back.intensity = value;
   });
-
-  console.log("light 12");
 
   document.getElementById("back-x-pos").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
@@ -1212,15 +1212,11 @@ function createLightingControls() {
     window.lights.back.position.x = value;
   });
 
-  console.log("light 13");
-
   document.getElementById("back-y-pos").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
     document.getElementById("back-y-value").textContent = value.toFixed(1);
     window.lights.back.position.y = value;
   });
-
-  console.log("light 14");
 
   document.getElementById("back-z-pos").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
@@ -1228,15 +1224,11 @@ function createLightingControls() {
     window.lights.back.position.z = value;
   });
 
-  console.log("light 15");
-
   document
     .getElementById("back-cast-shadow")
     .addEventListener("change", (e) => {
       window.lights.back.castShadow = e.target.checked;
     });
-
-  console.log("light 16");
 
   document.querySelectorAll(".back-color-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1247,8 +1239,6 @@ function createLightingControls() {
     });
   });
 
-  console.log("light 17");
-
   // Fill Light
   document
     .getElementById("fill-light-enabled")
@@ -1256,15 +1246,11 @@ function createLightingControls() {
       window.lights.fill.visible = e.target.checked;
     });
 
-  console.log("light 18");
-
   document.getElementById("fill-intensity").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
     document.getElementById("fill-value").textContent = value.toFixed(1);
     window.lights.fill.intensity = value;
   });
-
-  console.log("light 19");
 
   document.querySelectorAll(".fill-color-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1275,8 +1261,6 @@ function createLightingControls() {
     });
   });
 
-  console.log("light 20");
-
   // Bottom Light
   document
     .getElementById("bottom-light-enabled")
@@ -1284,15 +1268,11 @@ function createLightingControls() {
       window.lights.bottom.visible = e.target.checked;
     });
 
-  console.log("light 21");
-
   document.getElementById("bottom-intensity").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
     document.getElementById("bottom-value").textContent = value.toFixed(1);
     window.lights.bottom.intensity = value;
   });
-
-  console.log("light 22");
 
   document.querySelectorAll(".bottom-color-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1302,8 +1282,6 @@ function createLightingControls() {
       window.lights.bottom.color.copy(threeColor);
     });
   });
-
-  console.log("light 23");
 
   // Point Light
   document
@@ -1346,7 +1324,6 @@ function createLightingControls() {
     const value = parseFloat(e.target.value);
     document.getElementById("point-decay-value").textContent = value;
     window.lights.point.decay = value;
-    console.log("window.lights.point :>> ", window.lights.point);
   });
 
   document
