@@ -40,43 +40,43 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 window.renderer = renderer;
 
+// Ambient light - general illumination
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
-// Directional lights
+// Main directional light - primary light source
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
 directionalLight.position.set(1, 1, 1);
 directionalLight.castShadow = true;
-// Set up shadow properties
 directionalLight.shadow.mapSize.width = 512;
 directionalLight.shadow.mapSize.height = 512;
 directionalLight.shadow.camera.near = 0.5;
 directionalLight.shadow.camera.far = 500;
 scene.add(directionalLight);
 
-// Back light
-const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
+// Back light - creates separation from background
+const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
 backLight.position.set(-1, 0.5, -1);
 backLight.castShadow = true;
 backLight.shadow.mapSize.width = 512;
 backLight.shadow.mapSize.height = 512;
 scene.add(backLight);
 
-// Fill light from the side
+// Fill light - softens shadows from main light
 const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
 fillLight.position.set(1, 0, -0.5);
-fillLight.castShadow = false; // Fill lights typically don't cast shadows
+fillLight.castShadow = false;
 scene.add(fillLight);
 
-// Soft light from below for subtle highlights
+// Bottom light - subtle highlights from below
 const bottomLight = new THREE.DirectionalLight(0xffffff, 0.2);
 bottomLight.position.set(0, -1, 0.5);
 bottomLight.castShadow = false;
 scene.add(bottomLight);
 
-// Add point light in the center
-const pointLight = new THREE.PointLight(0xffffff, 0.5, 300, 2);
-pointLight.position.set(0, 0, 50);
+// Point light - central highlight
+const pointLight = new THREE.PointLight(0xffffff, 100, 0.0, 1.0);
+pointLight.position.set(0, 0, 70);
 pointLight.castShadow = true;
 pointLight.shadow.mapSize.width = 512;
 pointLight.shadow.mapSize.height = 512;
@@ -1365,6 +1365,7 @@ function createLightingControls() {
       const value = parseFloat(e.target.value);
       document.getElementById("ambient-value").textContent = value.toFixed(1);
       window.lights.ambient.intensity = value;
+      console.log("window.lights.ambient :>> ", window.lights.ambient);
     });
 
   console.log("light 2");
@@ -1595,8 +1596,9 @@ function createLightingControls() {
 
   document.getElementById("point-decay").addEventListener("input", (e) => {
     const value = parseFloat(e.target.value);
-    document.getElementById("point-decay-value").textContent = value.toFixed(1);
+    document.getElementById("point-decay-value").textContent = value;
     window.lights.point.decay = value;
+    console.log("window.lights.point :>> ", window.lights.point);
   });
 
   document
@@ -1734,7 +1736,7 @@ function init() {
   window.customMetalness = 0.5;
   window.customRoughness = 0.5;
   // Load the SVG
-  loadSVG("../assets/map-test.svg");
+  loadSVG("../assets/vector.svg");
   // Start animation loop
   animate();
 }
