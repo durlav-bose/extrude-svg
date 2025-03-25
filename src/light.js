@@ -10,7 +10,7 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 let threeColor = new THREE.Color(0x00ff00);
 // Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111111); // Default background until HDR loads
+// scene.background = new THREE.Color(0x111111);
 
 // Camera setup
 const cameraHeight = 700;
@@ -33,6 +33,7 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
   preserveDrawingBuffer: true,
   physicallyCorrectLights: true,
+  alpha: true,
   canvas: document.querySelector("#canvas"),
 });
 
@@ -428,7 +429,7 @@ function takeScreenshot() {
 
   // Create a new scene for capturing
   const captureScene = new THREE.Scene();
-  captureScene.background = scene.background.clone();
+  // captureScene.background = scene.background.clone();
 
   // Copy all lights from the original scene
   scene.traverse((obj) => {
