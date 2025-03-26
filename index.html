@@ -7,12 +7,14 @@
 
     <style>
       :root {
-        --primary-bg: #f4f4f8;
-        --secondary-bg: #ffffff;
-        --text-color: #1a1a2e;
-        --accent-color: #4a6cf7;
-        --border-color: #e0e0e7;
-        --hover-color: #5d7aff;
+        --primary-bg: #eeeeee;
+        --secondary-bg: #474747;
+        --text-color: #ffffff;
+        --accent-color: #1b1b1b;
+        --border-color: #1b1b1b;
+        --hover-color: #0e0d0d;
+        --panel-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+        --section-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
       }
 
       * {
@@ -35,14 +37,14 @@
         display: flex;
         max-width: 1600px;
         margin: 0 auto;
-        padding: 20px;
+        padding: 30px;
         gap: 30px;
       }
 
       #svg-controls {
         background-color: var(--secondary-bg);
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        border-radius: 16px;
+        box-shadow: var(--panel-shadow);
         padding: 25px;
         width: 400px;
         max-height: 90vh;
@@ -51,54 +53,17 @@
       }
 
       .control-section {
-        background-color: var(--primary-bg);
-        border-radius: 8px;
-        padding: 15px;
+        background-color: var(--secondary-bg);
+        border-radius: 12px;
+        padding: 18px;
         margin-bottom: 15px;
         border: 1px solid var(--border-color);
+        box-shadow: var(--section-shadow);
       }
 
-      .section-title {
-        font-weight: 600;
-        margin-bottom: 10px;
-        color: var(--accent-color);
-        display: block;
-      }
-
-      input[type="range"],
-      input[type="number"],
-      select,
-      button {
-        width: 100%;
-        padding: 8px;
-        margin-top: 5px;
-        border-radius: 6px;
-        border: 1px solid var(--border-color);
-      }
-
-      button {
-        background-color: var(--accent-color);
-        color: white;
-        border: none;
-        cursor: pointer;
-        font-weight: 500;
-      }
-
-      button:hover {
-        background-color: var(--hover-color);
-      }
-
-      .color-btn {
-        width: 35px;
-        height: 35px;
-        border-radius: 6px;
-        margin: 3px;
-        border: 2px solid var(--border-color);
-        cursor: pointer;
-      }
-
-      .color-btn:hover {
-        transform: scale(1.1);
+      .collapsible-section {
+        margin-bottom: 15px;
+        overflow: hidden;
       }
 
       .collapsible {
@@ -109,13 +74,15 @@
         border: none;
         text-align: left;
         outline: none;
-        padding: 12px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-bottom: 0;
+        font-weight: 600;
+        font-size: 14px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        box-shadow: 0 4px 10px rgba(74, 108, 247, 0.2);
       }
 
       .collapsible:hover {
@@ -126,7 +93,187 @@
         max-height: 0;
         overflow: hidden;
         transition: max-height 0.3s ease-out;
+        background-color: var(--secondary-bg);
+        border-radius: 0 0 12px 12px;
+        border: none;
+        border-top: none;
+      }
+
+      .collapsible-content.active {
+        max-height: 1000px;
+        transition: max-height 0.5s ease-in;
+        border: 1px solid var(--border-color);
+      }
+
+      .collapsible.active {
+        border-radius: 12px 12px 0 0;
+      }
+
+      .section-title {
+        font-weight: 600;
+        margin-bottom: 12px;
+        color: var(--text-color);
+        display: block;
+        font-size: 14px;
+      }
+
+      input[type="range"],
+      input[type="number"],
+      select,
+      button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 8px;
         border-radius: 8px;
+        border: 1px solid var(--border-color);
+        font-size: 14px;
+      }
+
+      input[type="range"] {
+        height: 6px;
+        -webkit-appearance: none;
+        background: #e0e0e7;
+        border-radius: 4px;
+        padding: 0;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: var(--text-color);
+        cursor: pointer;
+      }
+
+      button {
+        background-color: var(--accent-color);
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        padding: 12px;
+        transition: all 0.2s ease;
+        box-shadow: 0 6px 12px rgba(29, 29, 29, 0.25);
+      }
+
+      button:hover {
+        background-color: var(--hover-color);
+        /* transform: translateY(-2px); */
+        box-shadow: 0 6px 12px rgba(12, 12, 12, 0.25);
+      }
+
+      .color-palette-btn {
+        width: 35px;
+        height: 35px;
+        border-radius: 8px;
+        margin: 4px;
+        border: 2px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .color-palette-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .color-palette {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+
+      #canvas {
+        border-radius: 12px;
+        border: 2px dashed var(--border-color);
+        box-shadow: var(--panel-shadow);
+        transition: all 0.3s ease;
+      }
+
+      .canvas-container {
+        flex-grow: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .toggle-sign {
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      .slider-with-value {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .slider-with-value input {
+        flex-grow: 1;
+      }
+
+      .slider-value {
+        min-width: 35px;
+        text-align: right;
+        font-weight: 600;
+        color: var(--text-color);
+      }
+
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0;
+        cursor: pointer;
+      }
+
+      input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .control-section-inner {
+        padding: 16px;
+      }
+
+      .app-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        color: var(--text-color);
+        text-align: center;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .main-button {
+        margin-top: 20px;
+        padding: 14px;
+        font-weight: 600;
+        font-size: 15px;
+        box-shadow: 0 6px 12px rgba(12, 12, 12, 0.25);
+      }
+
+      .sub-collapsible {
+        background-color: var(--accent-color);
+        font-size: 13px;
+        padding: 12px 15px;
+      }
+
+      .light-section {
+        padding: 12px;
+        background-color: var(--secondary-bg);
+        margin-bottom: 10px;
       }
 
       @media (max-width: 1200px) {
@@ -141,1169 +288,1295 @@
         }
       }
 
-      #canvas {
-        border: 2px dashed var(--border-color);
+      /* Professional Scrollbar Styling with Smooth Behavior */
+
+      /* Add smooth scrolling to all scrollable elements */
+      html {
+        scroll-behavior: smooth;
+      }
+
+      #svg-controls,
+      .collapsible-content,
+      .light-section {
+        scroll-behavior: smooth;
+      }
+
+      /* Webkit browsers (Chrome, Safari, newer Edge) */
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: #c0c8ff;
+        border-radius: 10px;
+        border: 2px solid #f1f1f1;
+        transition: all 0.3s ease;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent-color);
+      }
+
+      /* Firefox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #2b2b2b #535353;
+      }
+
+      /* Customize the specific panel scrollbar */
+      #svg-controls::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      #svg-controls::-webkit-scrollbar-track {
+        background: rgba(241, 241, 241, 0.5);
+        border-radius: 10px;
+        margin: 8px 0;
+      }
+
+      #svg-controls::-webkit-scrollbar-thumb {
+        background: #c0c8ff;
+        border-radius: 10px;
+        border: 2px solid #f1f1f1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+
+      #svg-controls::-webkit-scrollbar-thumb:hover {
+        background: var(--accent-color);
       }
     </style>
   </head>
   <body>
-    <!-- Controls Panel -->
     <div class="container">
       <div id="svg-controls">
+        <h1 class="app-title">SVG Extrusion Tool</h1>
+
         <!-- Color Controls -->
-        <div class="control-section">
-          <label class="section-title">Path Color:</label>
-          <div style="display: flex; gap: 5px; flex-wrap: wrap">
-            <button
-              class="color-btn"
-              data-color="0x111111"
-              style="background: #111111"
-            ></button>
-            <button
-              class="color-btn"
-              data-color="0x00FF00"
-              style="background: #00ff00"
-            ></button>
-            <button
-              class="color-btn"
-              data-color="0xFF0000"
-              style="background: #ff0000"
-            ></button>
-            <button
-              class="color-btn"
-              data-color="0x0000FF"
-              style="background: #0000ff"
-            ></button>
-            <button
-              class="color-btn"
-              data-color="0xFFFF00"
-              style="background: #ffff00"
-            ></button>
-            <button
-              class="color-btn"
-              data-color="0xFF00FF"
-              style="background: #ff00ff"
-            ></button>
-            <button
-              class="color-btn"
-              data-color="0x00FFFF"
-              style="background: #00ffff"
-            ></button>
-            <button
-              class="color-btn"
-              data-color="0xFFD700"
-              style="background: #ffd700"
-            ></button>
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Path Color</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <div class="color-palette">
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0x111111"
+                  style="background: #111111"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0x00FF00"
+                  style="background: #00ff00"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0xFF0000"
+                  style="background: #ff0000"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0x0000FF"
+                  style="background: #0000ff"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0xFFFF00"
+                  style="background: #ffff00"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0xFF00FF"
+                  style="background: #ff00ff"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0x00FFFF"
+                  style="background: #00ffff"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0xFFD700"
+                  style="background: #ffd700"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0xFFFFFF"
+                  style="background: #ffffff"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0x8BC34A"
+                  style="background: #8bc34a"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0x9C27B0"
+                  style="background: #9c27b0"
+                ></button>
+                <button
+                  class="color-btn color-palette-btn"
+                  data-color="0xE91E63"
+                  style="background: #e91e63"
+                ></button>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Background Controls -->
-        <div class="control-section">
-          <label class="section-title">Background:</label>
-          <div style="display: flex; gap: 5px; flex-wrap: wrap">
-            <button
-              class="bg-btn"
-              data-color="0x000000"
-              style="background: #000000"
-            ></button>
-            <button
-              class="bg-btn"
-              data-color="0x222222"
-              style="background: #222222"
-            ></button>
-            <button
-              class="bg-btn"
-              data-color="0x444444"
-              style="background: #444444"
-            ></button>
-            <button
-              class="bg-btn"
-              data-color="0xFFFFFF"
-              style="background: #ffffff"
-            ></button>
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Background</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <div class="color-palette">
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0x000000"
+                  style="background: #000000"
+                ></button>
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0x222222"
+                  style="background: #222222"
+                ></button>
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0x444444"
+                  style="background: #444444"
+                ></button>
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0xFFFFFF"
+                  style="background: #ffffff"
+                ></button>
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0xF5F5F5"
+                  style="background: #f5f5f5"
+                ></button>
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0x2C3E50"
+                  style="background: #2c3e50"
+                ></button>
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0x3F51B5"
+                  style="background: #3f51b5"
+                ></button>
+                <button
+                  class="bg-btn color-palette-btn"
+                  data-color="0x009688"
+                  style="background: #009688"
+                ></button>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Extrusion Controls -->
-        <div class="control-section">
-          <label class="section-title">Extrusion Depth:</label>
-          <div style="display: flex; flex-direction: column; gap: 5px">
-            <div style="display: flex; align-items: center; gap: 10px">
-              <input
-                type="range"
-                id="extrusion-depth"
-                min="1"
-                max="30"
-                value="10"
-                style="flex-grow: 1"
-              />
-              <span id="depth-value" style="min-width: 25px; text-align: right"
-                >10</span
-              >
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Extrusion Settings</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <label class="section-title">Extrusion Depth:</label>
+              <div class="slider-with-value">
+                <input
+                  type="range"
+                  id="extrusion-depth"
+                  min="1"
+                  max="30"
+                  value="10"
+                />
+                <span id="depth-value" class="slider-value">10</span>
+              </div>
+              <button id="apply-depth">Apply Depth</button>
             </div>
-            <button id="apply-depth" style="padding: 5px">Apply Depth</button>
           </div>
         </div>
 
-        
-
-        <div class="control-section">
-          <label class="section-title">Material Type:</label>
-          <select id="material-select">
-            <option value="" disabled selected>Select a material</option>
-            <option value="metal">Metal</option>
-            <option value="plastic">Plastic</option>
-            <option value="glass">Glass</option>
-            <option value="wood">Wood</option>
-          </select>
-          <button
-            id="apply-material-type"
-            style="padding: 5px; margin-top: 5px"
-          >
-            Apply Material
+        <!-- Material Type -->
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Material Type</span>
+            <span class="toggle-sign">+</span>
           </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <select id="material-select">
+                <option value="" disabled selected>Select a material</option>
+                <option value="metal">Metal</option>
+                <option value="plastic">Plastic</option>
+                <option value="glass">Glass</option>
+                <option value="wood">Wood</option>
+                <option value="chrome">Chrome</option>
+                <option value="matte">Matte</option>
+              </select>
+              <button id="apply-material-type" style="margin-top: 10px">
+                Apply Material
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Material Properties -->
-        <div class="control-section">
-          <label class="section-title">Material Properties:</label>
-          <div style="display: flex; flex-direction: column; gap: 8px">
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Metalness:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="metalness-slider"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value="0.5"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="metalness-value"
-                  style="min-width: 25px; text-align: right"
-                  >0.5</span
-                >
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Material Properties</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <div style="margin-bottom: 15px">
+                <label class="section-title">Metalness:</label>
+                <div class="slider-with-value">
+                  <input
+                    type="range"
+                    id="metalness-slider"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value="0.5"
+                  />
+                  <span id="metalness-value" class="slider-value">0.5</span>
+                </div>
               </div>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Roughness:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="roughness-slider"
-                  min="0"
-                  max="0.5"
-                  step="0.01"
-                  value="0.3"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="roughness-value"
-                  style="min-width: 25px; text-align: right"
-                  >0.3</span
-                >
+              <div>
+                <label class="section-title">Roughness:</label>
+                <div class="slider-with-value">
+                  <input
+                    type="range"
+                    id="roughness-slider"
+                    min="0"
+                    max="0.5"
+                    step="0.01"
+                    value="0.3"
+                  />
+                  <span id="roughness-value" class="slider-value">0.3</span>
+                </div>
               </div>
+              <button id="apply-material-props" style="margin-top: 10px">
+                Apply Properties
+              </button>
             </div>
           </div>
         </div>
 
         <!-- Edge Smoothing Controls -->
-        <div class="control-section">
-          <label class="section-title">Edge Smoothing:</label>
-          <div style="display: flex; flex-direction: column; gap: 8px">
-            <!-- Bevel toggle -->
-            <label style="display: flex; align-items: center; gap: 5px">
-              <input type="checkbox" id="edge-bevel-enabled" checked />
-              Enable Beveled Edges
-            </label>
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Edge Smoothing</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <label class="checkbox-label">
+                <input type="checkbox" id="edge-bevel-enabled" checked />
+                <span>Enable Beveled Edges</span>
+              </label>
 
-            <!-- Curve segments slider -->
-            <div style="margin-top: 5px">
-              <label style="display: block; margin-bottom: 2px"
-                >Curve Quality:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="curve-segments"
-                  min="5"
-                  max="50"
-                  step="5"
-                  value="25"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="curve-segments-value"
-                  style="min-width: 25px; text-align: right"
-                  >25</span
-                >
+              <div style="margin-top: 12px">
+                <label class="section-title">Curve Quality:</label>
+                <div class="slider-with-value">
+                  <input
+                    type="range"
+                    id="curve-segments"
+                    min="5"
+                    max="50"
+                    step="5"
+                    value="25"
+                  />
+                  <span id="curve-segments-value" class="slider-value">25</span>
+                </div>
               </div>
-            </div>
 
-            <!-- Apply button -->
-            <button id="apply-smoothing" style="margin-top: 8px; padding: 5px">
-              Apply Smoothing
-            </button>
+              <button id="apply-smoothing" style="margin-top: 12px">
+                Apply Smoothing
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Lighting Controls Section -->
-        <button class="collapsible">
-          <span>Lighting Controls</span>
-          <span class="toggle-sign">+</span>
-        </button>
-        <div class="collapsible-content">
-          <!-- Ambient Light -->
-          <div class="control-section">
-            <label
-              style="
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 5px;
-              "
-            >
-              <span>Ambient Light</span>
-              <span>
-                <input type="checkbox" id="ambient-light-enabled" checked />
-                <label for="ambient-light-enabled">Enable</label>
-              </span>
-            </label>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Intensity:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="ambient-intensity"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value="0.2"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="ambient-value"
-                  style="min-width: 25px; text-align: right"
-                  >0.2</span
-                >
-              </div>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px">Color:</label>
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
-                <button
-                  class="ambient-color-btn"
-                  data-color="0xFFFFFF"
-                  style="background: #ffffff"
-                ></button>
-                <button
-                  class="ambient-color-btn"
-                  data-color="0xFFF8E1"
-                  style="background: #fff8e1"
-                ></button>
-                <button
-                  class="ambient-color-btn"
-                  data-color="0xE1F5FE"
-                  style="background: #e1f5fe"
-                ></button>
-                <button
-                  class="ambient-color-btn"
-                  data-color="0xF3E5F5"
-                  style="background: #f3e5f5"
-                ></button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Directional Light (Sun) -->
-          <div class="control-section">
-            <label
-              style="
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 5px;
-              "
-            >
-              <span>Directional Light (Sun)</span>
-              <span>
-                <input type="checkbox" id="directional-light-enabled" checked />
-                <label for="directional-light-enabled">Enable</label>
-              </span>
-            </label>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Intensity:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="directional-intensity"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value="0.8"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="directional-value"
-                  style="min-width: 25px; text-align: right"
-                  >0.8</span
-                >
-              </div>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Position:</label
-              >
-              <div style="display: flex; flex-wrap: wrap; gap: 5px">
-                <div style="flex: 1; min-width: 60px">
-                  <label style="display: block; font-size: 0.8em">X</label>
-                  <input
-                    type="range"
-                    id="directional-x-pos"
-                    min="-5"
-                    max="5"
-                    step="0.1"
-                    value="1.0"
-                    style="width: 100%"
-                  />
-                  <span id="directional-x-value" style="font-size: 0.8em"
-                    >1.0</span
-                  >
-                </div>
-                <div style="flex: 1; min-width: 60px">
-                  <label style="display: block; font-size: 0.8em">Y</label>
-                  <input
-                    type="range"
-                    id="directional-y-pos"
-                    min="-5"
-                    max="5"
-                    step="0.1"
-                    value="1.0"
-                    style="width: 100%"
-                  />
-                  <span id="directional-y-value" style="font-size: 0.8em"
-                    >1.0</span
-                  >
-                </div>
-                <div style="flex: 1; min-width: 60px">
-                  <label style="display: block; font-size: 0.8em">Z</label>
-                  <input
-                    type="range"
-                    id="directional-z-pos"
-                    min="-5"
-                    max="5"
-                    step="0.1"
-                    value="1.0"
-                    style="width: 100%"
-                  />
-                  <span id="directional-z-value" style="font-size: 0.8em"
-                    >1.0</span
-                  >
-                </div>
-              </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: flex; align-items: center; gap: 5px">
-                <input type="checkbox" id="directional-cast-shadow" checked />
-                <span>Cast Shadows</span>
-              </label>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px">Color:</label>
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
-                <button
-                  class="directional-color-btn"
-                  data-color="0xFFFFFF"
-                  style="background: #ffffff"
-                ></button>
-                <button
-                  class="directional-color-btn"
-                  data-color="0xFFF8E1"
-                  style="background: #fff8e1"
-                ></button>
-                <button
-                  class="directional-color-btn"
-                  data-color="0xE1F5FE"
-                  style="background: #e1f5fe"
-                ></button>
-                <button
-                  class="directional-color-btn"
-                  data-color="0xF3E5F5"
-                  style="background: #f3e5f5"
-                ></button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Point Light -->
-          <div class="control-section">
-            <label
-              style="
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 5px;
-              "
-            >
-              <span>Point Light</span>
-              <span>
-                <input type="checkbox" id="point-light-enabled" checked />
-                <label for="point-light-enabled">Enable</label>
-              </span>
-            </label>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Intensity:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="point-intensity"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value="50"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="point-value"
-                  style="min-width: 25px; text-align: right"
-                  >50</span
-                >
-              </div>
-            </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 10px">
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >X Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="point-x-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="0"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="point-x-value"
-                    style="min-width: 25px; text-align: right"
-                    >0</span
-                  >
-                </div>
-              </div>
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >Y Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="point-y-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="0"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="point-y-value"
-                    style="min-width: 25px; text-align: right"
-                    >0</span
-                  >
-                </div>
-              </div>
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >Z Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="point-z-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="70"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="point-z-value"
-                    style="min-width: 25px; text-align: right"
-                    >70</span
-                  >
-                </div>
-              </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: block; margin-bottom: 2px"
-                >Distance (range):</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="point-distance"
-                  min="0"
-                  max="500"
-                  step="10"
-                  value="200"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="point-distance-value"
-                  style="min-width: 25px; text-align: right"
-                  >200</span
-                >
-              </div>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px">Decay:</label>
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="point-decay"
-                  min="0"
-                  max="2"
-                  step="0.01"
-                  value="1"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="point-decay-value"
-                  style="min-width: 25px; text-align: right"
-                  >1.0</span
-                >
-              </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: flex; align-items: center; gap: 5px">
-                <input type="checkbox" id="point-cast-shadow" checked />
-                <span>Cast Shadows</span>
-              </label>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px">Color:</label>
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
-                <button
-                  class="point-color-btn"
-                  data-color="0xFFFFFF"
-                  style="background: #ffffff"
-                ></button>
-                <button
-                  class="point-color-btn"
-                  data-color="0xFFF8E1"
-                  style="background: #fff8e1"
-                ></button>
-                <button
-                  class="point-color-btn"
-                  data-color="0xE1F5FE"
-                  style="background: #e1f5fe"
-                ></button>
-                <button
-                  class="point-color-btn"
-                  data-color="0xF3E5F5"
-                  style="background: #f3e5f5"
-                ></button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Spot Light -->
-          <div class="control-section">
-            <label
-              style="
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 5px;
-              "
-            >
-              <span>Spot Light</span>
-              <span>
-                <input type="checkbox" id="spot-light-enabled" checked />
-                <label for="spot-light-enabled">Enable</label>
-              </span>
-            </label>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Intensity:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="spot-intensity"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value="60"
-                  style="flex-grow: 1"
-                />
-                <span id="spot-value" style="min-width: 25px; text-align: right"
-                  >60</span
-                >
-              </div>
-            </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 10px">
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >X Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="spot-x-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="100"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="spot-x-value"
-                    style="min-width: 25px; text-align: right"
-                    >100</span
-                  >
-                </div>
-              </div>
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >Y Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="spot-y-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="100"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="spot-y-value"
-                    style="min-width: 25px; text-align: right"
-                    >100</span
-                  >
-                </div>
-              </div>
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >Z Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="spot-z-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="100"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="spot-z-value"
-                    style="min-width: 25px; text-align: right"
-                    >100</span
-                  >
-                </div>
-              </div>
-            </div>
-            <div style="margin-top: 10px">
-              <label
-                style="display: block; font-weight: bold; margin-bottom: 5px"
-                >Target:</label
-              >
-              <div style="display: flex; flex-wrap: wrap; gap: 10px">
-                <div style="flex: 1; min-width: 120px">
-                  <label style="display: block; margin-bottom: 2px"
-                    >X Position:</label
-                  >
-                  <div style="display: flex; align-items: center; gap: 10px">
-                    <input
-                      type="range"
-                      id="spot-target-x-pos"
-                      min="-300"
-                      max="300"
-                      step="1"
-                      value="0"
-                      style="flex-grow: 1"
-                    />
-                    <span
-                      id="spot-target-x-value"
-                      style="min-width: 25px; text-align: right"
-                      >0</span
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Lighting Controls</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <!-- Ambient Light -->
+              <div class="collapsible-section">
+                <button class="collapsible sub-collapsible">
+                  <span>Ambient Light</span>
+                  <span class="toggle-sign">+</span>
+                </button>
+                <div class="collapsible-content">
+                  <div class="light-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: flex-end;
+                        margin-bottom: 10px;
+                      "
                     >
-                  </div>
-                </div>
-                <div style="flex: 1; min-width: 120px">
-                  <label style="display: block; margin-bottom: 2px"
-                    >Y Position:</label
-                  >
-                  <div style="display: flex; align-items: center; gap: 10px">
-                    <input
-                      type="range"
-                      id="spot-target-y-pos"
-                      min="-300"
-                      max="300"
-                      step="1"
-                      value="0"
-                      style="flex-grow: 1"
-                    />
-                    <span
-                      id="spot-target-y-value"
-                      style="min-width: 25px; text-align: right"
-                      >0</span
-                    >
-                  </div>
-                </div>
-                <div style="flex: 1; min-width: 120px">
-                  <label style="display: block; margin-bottom: 2px"
-                    >Z Position:</label
-                  >
-                  <div style="display: flex; align-items: center; gap: 10px">
-                    <input
-                      type="range"
-                      id="spot-target-z-pos"
-                      min="-300"
-                      max="300"
-                      step="1"
-                      value="0"
-                      style="flex-grow: 1"
-                    />
-                    <span
-                      id="spot-target-z-value"
-                      style="min-width: 25px; text-align: right"
-                      >0</span
-                    >
+                      <label class="checkbox-label" style="margin: 0">
+                        <input
+                          type="checkbox"
+                          id="ambient-light-enabled"
+                          checked
+                        />
+                        <span>Enable</span>
+                      </label>
+                    </div>
+                    <div style="margin-bottom: 12px">
+                      <label>Intensity:</label>
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="ambient-intensity"
+                          min="0"
+                          max="2"
+                          step="0.1"
+                          value="0.2"
+                        />
+                        <span id="ambient-value" class="slider-value">0.2</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label>Color:</label>
+                      <div class="color-palette">
+                        <button
+                          class="ambient-color-btn color-palette-btn"
+                          data-color="0xFFFFFF"
+                          style="background: #ffffff"
+                        ></button>
+                        <button
+                          class="ambient-color-btn color-palette-btn"
+                          data-color="0xFFF8E1"
+                          style="background: #fff8e1"
+                        ></button>
+                        <button
+                          class="ambient-color-btn color-palette-btn"
+                          data-color="0xE1F5FE"
+                          style="background: #e1f5fe"
+                        ></button>
+                        <button
+                          class="ambient-color-btn color-palette-btn"
+                          data-color="0xF3E5F5"
+                          style="background: #f3e5f5"
+                        ></button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: block; margin-bottom: 2px"
-                >Distance (range):</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="spot-distance"
-                  min="0"
-                  max="500"
-                  step="10"
-                  value="300"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="spot-distance-value"
-                  style="min-width: 25px; text-align: right"
-                  >300</span
-                >
-              </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: block; margin-bottom: 2px">Angle:</label>
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="spot-angle"
-                  min="1"
-                  max="90"
-                  step="1"
-                  value="30"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="spot-angle-value"
-                  style="min-width: 25px; text-align: right"
-                  >30°</span
-                >
-              </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: flex; align-items: center; gap: 5px">
-                <input type="checkbox" id="spot-cast-shadow" checked />
-                <span>Cast Shadows</span>
-              </label>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px">Color:</label>
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
-                <button
-                  class="spot-color-btn"
-                  data-color="0xFFFFFF"
-                  style="background: #ffffff"
-                ></button>
-                <button
-                  class="spot-color-btn"
-                  data-color="0xFFF8E1"
-                  style="background: #fff8e1"
-                ></button>
-                <button
-                  class="spot-color-btn"
-                  data-color="0xE1F5FE"
-                  style="background: #e1f5fe"
-                ></button>
-                <button
-                  class="spot-color-btn"
-                  data-color="0xF3E5F5"
-                  style="background: #f3e5f5"
-                ></button>
-              </div>
-            </div>
-          </div>
 
-          <!-- Hemisphere Light -->
-          <div class="control-section">
-            <label
-              style="
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 5px;
-              "
-            >
-              <span>Hemisphere Light</span>
-              <span>
-                <input type="checkbox" id="hemisphere-light-enabled" checked />
-                <label for="hemisphere-light-enabled">Enable</label>
-              </span>
-            </label>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Intensity:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="hemisphere-intensity"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value="0.3"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="hemisphere-value"
-                  style="min-width: 25px; text-align: right"
-                  >0.3</span
-                >
-              </div>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Sky Color:</label
-              >
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
-                <button
-                  class="hemisphere-sky-btn"
-                  data-color="0x0088ff"
-                  style="background: #0088ff"
-                ></button>
-                <button
-                  class="hemisphere-sky-btn"
-                  data-color="0x87CEEB"
-                  style="background: #87ceeb"
-                ></button>
-                <button
-                  class="hemisphere-sky-btn"
-                  data-color="0xE1F5FE"
-                  style="background: #e1f5fe"
-                ></button>
-                <button
-                  class="hemisphere-sky-btn"
-                  data-color="0xFFFFFF"
-                  style="background: #ffffff"
-                ></button>
-              </div>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Ground Color:</label
-              >
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
-                <button
-                  class="hemisphere-ground-btn"
-                  data-color="0xff8800"
-                  style="background: #ff8800"
-                ></button>
-                <button
-                  class="hemisphere-ground-btn"
-                  data-color="0x996633"
-                  style="background: #996633"
-                ></button>
-                <button
-                  class="hemisphere-ground-btn"
-                  data-color="0x333333"
-                  style="background: #333333"
-                ></button>
-                <button
-                  class="hemisphere-ground-btn"
-                  data-color="0x777777"
-                  style="background: #777777"
-                ></button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Rect Area Light -->
-          <div class="control-section">
-            <label
-              style="
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 5px;
-              "
-            >
-              <span>Rect Area Light</span>
-              <span>
-                <input type="checkbox" id="rectArea-light-enabled" checked />
-                <label for="rectArea-light-enabled">Enable</label>
-              </span>
-            </label>
-            <div>
-              <label style="display: block; margin-bottom: 2px"
-                >Intensity:</label
-              >
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="rectArea-intensity"
-                  min="0"
-                  max="10"
-                  step="0.1"
-                  value="3"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="rectArea-value"
-                  style="min-width: 25px; text-align: right"
-                  >3.0</span
-                >
-              </div>
-            </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 10px">
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >X Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="rectArea-x-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="-100"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="rectArea-x-value"
-                    style="min-width: 25px; text-align: right"
-                    >-100</span
-                  >
+              <!-- Directional Light -->
+              <div class="collapsible-section">
+                <button class="collapsible sub-collapsible">
+                  <span>Directional Light</span>
+                  <span class="toggle-sign">+</span>
+                </button>
+                <div class="collapsible-content">
+                  <div class="light-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: flex-end;
+                        margin-bottom: 10px;
+                      "
+                    >
+                      <label class="checkbox-label" style="margin: 0">
+                        <input
+                          type="checkbox"
+                          id="directional-light-enabled"
+                          checked
+                        />
+                        <span>Enable</span>
+                      </label>
+                    </div>
+                    <div style="margin-bottom: 12px">
+                      <label>Intensity:</label>
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="directional-intensity"
+                          min="0"
+                          max="2"
+                          step="0.1"
+                          value="0.8"
+                        />
+                        <span id="directional-value" class="slider-value"
+                          >0.8</span
+                        >
+                      </div>
+                    </div>
+                    <div>
+                      <label>Position:</label>
+                      <div
+                        style="
+                          display: flex;
+                          flex-wrap: wrap;
+                          gap: 8px;
+                          margin-top: 8px;
+                        "
+                      >
+                        <div style="flex: 1; min-width: 60px">
+                          <label style="display: block; font-size: 0.9em"
+                            >X</label
+                          >
+                          <div class="slider-with-value">
+                            <input
+                              type="range"
+                              id="directional-x-pos"
+                              min="-5"
+                              max="5"
+                              step="0.1"
+                              value="1.0"
+                            />
+                            <span
+                              id="directional-x-value"
+                              class="slider-value"
+                              style="font-size: 0.9em"
+                              >1.0</span
+                            >
+                          </div>
+                        </div>
+                        <div style="flex: 1; min-width: 60px">
+                          <label style="display: block; font-size: 0.9em"
+                            >Y</label
+                          >
+                          <div class="slider-with-value">
+                            <input
+                              type="range"
+                              id="directional-y-pos"
+                              min="-5"
+                              max="5"
+                              step="0.1"
+                              value="1.0"
+                            />
+                            <span
+                              id="directional-y-value"
+                              class="slider-value"
+                              style="font-size: 0.9em"
+                              >1.0</span
+                            >
+                          </div>
+                        </div>
+                        <div style="flex: 1; min-width: 60px">
+                          <label style="display: block; font-size: 0.9em"
+                            >Z</label
+                          >
+                          <div class="slider-with-value">
+                            <input
+                              type="range"
+                              id="directional-z-pos"
+                              min="-5"
+                              max="5"
+                              step="0.1"
+                              value="1.0"
+                            />
+                            <span
+                              id="directional-z-value"
+                              class="slider-value"
+                              style="font-size: 0.9em"
+                              >1.0</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="margin-top: 12px">
+                      <label class="checkbox-label">
+                        <input
+                          type="checkbox"
+                          id="directional-cast-shadow"
+                          checked
+                        />
+                        <span>Cast Shadows</span>
+                      </label>
+                    </div>
+                    <div style="margin-top: 10px">
+                      <label>Color:</label>
+                      <div class="color-palette">
+                        <button
+                          class="directional-color-btn color-palette-btn"
+                          data-color="0xFFFFFF"
+                          style="background: #ffffff"
+                        ></button>
+                        <button
+                          class="directional-color-btn color-palette-btn"
+                          data-color="0xFFF8E1"
+                          style="background: #fff8e1"
+                        ></button>
+                        <button
+                          class="directional-color-btn color-palette-btn"
+                          data-color="0xE1F5FE"
+                          style="background: #e1f5fe"
+                        ></button>
+                        <button
+                          class="directional-color-btn color-palette-btn"
+                          data-color="0xF3E5F5"
+                          style="background: #f3e5f5"
+                        ></button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >Y Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="rectArea-y-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="0"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="rectArea-y-value"
-                    style="min-width: 25px; text-align: right"
-                    >0</span
-                  >
-                </div>
-              </div>
-              <div style="flex: 1; min-width: 120px">
-                <label style="display: block; margin-bottom: 2px"
-                  >Z Position:</label
-                >
-                <div style="display: flex; align-items: center; gap: 10px">
-                  <input
-                    type="range"
-                    id="rectArea-z-pos"
-                    min="-300"
-                    max="300"
-                    step="1"
-                    value="100"
-                    style="flex-grow: 1"
-                  />
-                  <span
-                    id="rectArea-z-value"
-                    style="min-width: 25px; text-align: right"
-                    >100</span
-                  >
-                </div>
-              </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: block; margin-bottom: 2px">Width:</label>
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="rectArea-width"
-                  min="10"
-                  max="300"
-                  step="5"
-                  value="100"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="rectArea-width-value"
-                  style="min-width: 25px; text-align: right"
-                  >100</span
-                >
-              </div>
-            </div>
-            <div style="margin-top: 8px">
-              <label style="display: block; margin-bottom: 2px">Height:</label>
-              <div style="display: flex; align-items: center; gap: 10px">
-                <input
-                  type="range"
-                  id="rectArea-height"
-                  min="10"
-                  max="300"
-                  step="5"
-                  value="100"
-                  style="flex-grow: 1"
-                />
-                <span
-                  id="rectArea-height-value"
-                  style="min-width: 25px; text-align: right"
-                  >100</span
-                >
-              </div>
-            </div>
-            <div>
-              <label style="display: block; margin-bottom: 2px">Color:</label>
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
-                <button
-                  class="rectArea-color-btn"
-                  data-color="0xFFFFFF"
-                  style="background: #ffffff"
-                ></button>
-                <button
-                  class="rectArea-color-btn"
-                  data-color="0xFFF8E1"
-                  style="background: #fff8e1"
-                ></button>
-                <button
-                  class="rectArea-color-btn"
-                  data-color="0xE1F5FE"
-                  style="background: #e1f5fe"
-                ></button>
-                <button
-                  class="rectArea-color-btn"
-                  data-color="0xF3E5F5"
-                  style="background: #f3e5f5"
-                ></button>
-              </div>
-            </div>
-          </div>
 
-          <!-- Light Helpers and Global Options -->
-          <div class="control-section">
-            <label style="display: block; margin-bottom: 5px; font-weight: bold"
-              >Global Light Settings:</label
-            >
-            <div style="margin-top: 8px">
-              <label style="display: flex; align-items: center; gap: 5px">
-                <input type="checkbox" id="show-light-helpers" />
-                <span>Show Light Helpers</span>
-              </label>
+              <!-- Point Light -->
+              <div class="collapsible-section">
+                <button class="collapsible sub-collapsible">
+                  <span>Point Light</span>
+                  <span class="toggle-sign">+</span>
+                </button>
+                <div class="collapsible-content">
+                  <div class="light-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: flex-end;
+                        margin-bottom: 10px;
+                      "
+                    >
+                      <label class="checkbox-label" style="margin: 0">
+                        <input
+                          type="checkbox"
+                          id="point-light-enabled"
+                          checked
+                        />
+                        <span>Enable</span>
+                      </label>
+                    </div>
+                    <div style="margin-bottom: 12px">
+                      <label>Intensity:</label>
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="point-intensity"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value="50"
+                        />
+                        <span id="point-value" class="slider-value">50</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px">
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >X Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="point-x-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="0"
+                          />
+                          <span id="point-x-value" class="slider-value">0</span>
+                        </div>
+                      </div>
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >Y Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="point-y-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="0"
+                          />
+                          <span id="point-y-value" class="slider-value">0</span>
+                        </div>
+                      </div>
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >Z Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="point-z-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="70"
+                          />
+                          <span id="point-z-value" class="slider-value"
+                            >70</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+                    <div style="margin-top: 8px">
+                      <label style="display: block; margin-bottom: 2px"
+                        >Distance (range):</label
+                      >
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="point-distance"
+                          min="0"
+                          max="500"
+                          step="10"
+                          value="200"
+                        />
+                        <span id="point-distance-value" class="slider-value"
+                          >200</span
+                        >
+                      </div>
+                    </div>
+                    <div>
+                      <label style="display: block; margin-bottom: 2px"
+                        >Decay:</label
+                      >
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="point-decay"
+                          min="0"
+                          max="2"
+                          step="0.01"
+                          value="1"
+                        />
+                        <span id="point-decay-value" class="slider-value"
+                          >1.0</span
+                        >
+                      </div>
+                    </div>
+                    <div style="margin-top: 8px">
+                      <label class="checkbox-label">
+                        <input type="checkbox" id="point-cast-shadow" checked />
+                        <span>Cast Shadows</span>
+                      </label>
+                    </div>
+                    <div>
+                      <label style="display: block; margin-bottom: 2px"
+                        >Color:</label
+                      >
+                      <div class="color-palette">
+                        <button
+                          class="point-color-btn color-palette-btn"
+                          data-color="0xFFFFFF"
+                          style="background: #ffffff"
+                        ></button>
+                        <button
+                          class="point-color-btn color-palette-btn"
+                          data-color="0xFFF8E1"
+                          style="background: #fff8e1"
+                        ></button>
+                        <button
+                          class="point-color-btn color-palette-btn"
+                          data-color="0xE1F5FE"
+                          style="background: #e1f5fe"
+                        ></button>
+                        <button
+                          class="point-color-btn color-palette-btn"
+                          data-color="0xF3E5F5"
+                          style="background: #f3e5f5"
+                        ></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Spot Light -->
+              <div class="collapsible-section">
+                <button class="collapsible sub-collapsible">
+                  <span>Spot Light</span>
+                  <span class="toggle-sign">+</span>
+                </button>
+                <div class="collapsible-content">
+                  <div class="light-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: flex-end;
+                        margin-bottom: 10px;
+                      "
+                    >
+                      <label class="checkbox-label" style="margin: 0">
+                        <input
+                          type="checkbox"
+                          id="spot-light-enabled"
+                          checked
+                        />
+                        <span>Enable</span>
+                      </label>
+                    </div>
+                    <div style="margin-bottom: 12px">
+                      <label>Intensity:</label>
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="spot-intensity"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value="60"
+                        />
+                        <span id="spot-value" class="slider-value">60</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px">
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >X Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="spot-x-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="100"
+                          />
+                          <span id="spot-x-value" class="slider-value"
+                            >100</span
+                          >
+                        </div>
+                      </div>
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >Y Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="spot-y-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="100"
+                          />
+                          <span id="spot-y-value" class="slider-value"
+                            >100</span
+                          >
+                        </div>
+                      </div>
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >Z Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="spot-z-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="100"
+                          />
+                          <span id="spot-z-value" class="slider-value"
+                            >100</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+                    <div style="margin-top: 10px">
+                      <label
+                        style="
+                          display: block;
+                          font-weight: 600;
+                          margin-bottom: 5px;
+                        "
+                        >Target:</label
+                      >
+                      <div style="display: flex; flex-wrap: wrap; gap: 10px">
+                        <div style="flex: 1; min-width: 120px">
+                          <label style="display: block; margin-bottom: 2px"
+                            >X Position:</label
+                          >
+                          <div class="slider-with-value">
+                            <input
+                              type="range"
+                              id="spot-target-x-pos"
+                              min="-300"
+                              max="300"
+                              step="1"
+                              value="0"
+                            />
+                            <span id="spot-target-x-value" class="slider-value"
+                              >0</span
+                            >
+                          </div>
+                        </div>
+                        <div style="flex: 1; min-width: 120px">
+                          <label style="display: block; margin-bottom: 2px"
+                            >Y Position:</label
+                          >
+                          <div class="slider-with-value">
+                            <input
+                              type="range"
+                              id="spot-target-y-pos"
+                              min="-300"
+                              max="300"
+                              step="1"
+                              value="0"
+                            />
+                            <span id="spot-target-y-value" class="slider-value"
+                              >0</span
+                            >
+                          </div>
+                        </div>
+                        <div style="flex: 1; min-width: 120px">
+                          <label style="display: block; margin-bottom: 2px"
+                            >Z Position:</label
+                          >
+                          <div class="slider-with-value">
+                            <input
+                              type="range"
+                              id="spot-target-z-pos"
+                              min="-300"
+                              max="300"
+                              step="1"
+                              value="0"
+                            />
+                            <span id="spot-target-z-value" class="slider-value"
+                              >0</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="margin-top: 8px">
+                      <label style="display: block; margin-bottom: 2px"
+                        >Distance (range):</label
+                      >
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="spot-distance"
+                          min="0"
+                          max="500"
+                          step="10"
+                          value="300"
+                        />
+                        <span id="spot-distance-value" class="slider-value"
+                          >300</span
+                        >
+                      </div>
+                    </div>
+                    <div style="margin-top: 8px">
+                      <label style="display: block; margin-bottom: 2px"
+                        >Angle:</label
+                      >
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="spot-angle"
+                          min="1"
+                          max="90"
+                          step="1"
+                          value="30"
+                        />
+                        <span id="spot-angle-value" class="slider-value"
+                          >30°</span
+                        >
+                      </div>
+                    </div>
+                    <div style="margin-top: 8px">
+                      <label class="checkbox-label">
+                        <input type="checkbox" id="spot-cast-shadow" checked />
+                        <span>Cast Shadows</span>
+                      </label>
+                    </div>
+                    <div>
+                      <label style="display: block; margin-bottom: 2px"
+                        >Color:</label
+                      >
+                      <div class="color-palette">
+                        <button
+                          class="spot-color-btn color-palette-btn"
+                          data-color="0xFFFFFF"
+                          style="background: #ffffff"
+                        ></button>
+                        <button
+                          class="spot-color-btn color-palette-btn"
+                          data-color="0xFFF8E1"
+                          style="background: #fff8e1"
+                        ></button>
+                        <button
+                          class="spot-color-btn color-palette-btn"
+                          data-color="0xE1F5FE"
+                          style="background: #e1f5fe"
+                        ></button>
+                        <button
+                          class="spot-color-btn color-palette-btn"
+                          data-color="0xF3E5F5"
+                          style="background: #f3e5f5"
+                        ></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hemisphere Light -->
+              <div class="collapsible-section">
+                <button class="collapsible sub-collapsible">
+                  <span>Hemisphere Light</span>
+                  <span class="toggle-sign">+</span>
+                </button>
+                <div class="collapsible-content">
+                  <div class="light-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: flex-end;
+                        margin-bottom: 10px;
+                      "
+                    >
+                      <label class="checkbox-label" style="margin: 0">
+                        <input
+                          type="checkbox"
+                          id="hemisphere-light-enabled"
+                          checked
+                        />
+                        <span>Enable</span>
+                      </label>
+                    </div>
+                    <div style="margin-bottom: 12px">
+                      <label>Intensity:</label>
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="hemisphere-intensity"
+                          min="0"
+                          max="2"
+                          step="0.1"
+                          value="0.3"
+                        />
+                        <span id="hemisphere-value" class="slider-value"
+                          >0.3</span
+                        >
+                      </div>
+                    </div>
+                    <div>
+                      <label style="display: block; margin-bottom: 2px"
+                        >Sky Color:</label
+                      >
+                      <div class="color-palette">
+                        <button
+                          class="hemisphere-sky-btn color-palette-btn"
+                          data-color="0x0088ff"
+                          style="background: #0088ff"
+                        ></button>
+                        <button
+                          class="hemisphere-sky-btn color-palette-btn"
+                          data-color="0x87CEEB"
+                          style="background: #87ceeb"
+                        ></button>
+                        <button
+                          class="hemisphere-sky-btn color-palette-btn"
+                          data-color="0xE1F5FE"
+                          style="background: #e1f5fe"
+                        ></button>
+                        <button
+                          class="hemisphere-sky-btn color-palette-btn"
+                          data-color="0xFFFFFF"
+                          style="background: #ffffff"
+                        ></button>
+                      </div>
+                    </div>
+                    <div style="margin-top: 10px">
+                      <label style="display: block; margin-bottom: 2px"
+                        >Ground Color:</label
+                      >
+                      <div class="color-palette">
+                        <button
+                          class="hemisphere-ground-btn color-palette-btn"
+                          data-color="0xff8800"
+                          style="background: #ff8800"
+                        ></button>
+                        <button
+                          class="hemisphere-ground-btn color-palette-btn"
+                          data-color="0x996633"
+                          style="background: #996633"
+                        ></button>
+                        <button
+                          class="hemisphere-ground-btn color-palette-btn"
+                          data-color="0x333333"
+                          style="background: #333333"
+                        ></button>
+                        <button
+                          class="hemisphere-ground-btn color-palette-btn"
+                          data-color="0x777777"
+                          style="background: #777777"
+                        ></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rect Area Light -->
+              <div class="collapsible-section">
+                <button class="collapsible sub-collapsible">
+                  <span>Rect Area Light</span>
+                  <span class="toggle-sign">+</span>
+                </button>
+                <div class="collapsible-content">
+                  <div class="light-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: flex-end;
+                        margin-bottom: 10px;
+                      "
+                    >
+                      <label class="checkbox-label" style="margin: 0">
+                        <input
+                          type="checkbox"
+                          id="rectArea-light-enabled"
+                          checked
+                        />
+                        <span>Enable</span>
+                      </label>
+                    </div>
+                    <div style="margin-bottom: 12px">
+                      <label>Intensity:</label>
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="rectArea-intensity"
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          value="3"
+                        />
+                        <span id="rectArea-value" class="slider-value"
+                          >3.0</span
+                        >
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px">
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >X Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="rectArea-x-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="-100"
+                          />
+                          <span id="rectArea-x-value" class="slider-value"
+                            >-100</span
+                          >
+                        </div>
+                      </div>
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >Y Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="rectArea-y-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="0"
+                          />
+                          <span id="rectArea-y-value" class="slider-value"
+                            >0</span
+                          >
+                        </div>
+                      </div>
+                      <div style="flex: 1; min-width: 120px">
+                        <label style="display: block; margin-bottom: 2px"
+                          >Z Position:</label
+                        >
+                        <div class="slider-with-value">
+                          <input
+                            type="range"
+                            id="rectArea-z-pos"
+                            min="-300"
+                            max="300"
+                            step="1"
+                            value="100"
+                          />
+                          <span id="rectArea-z-value" class="slider-value"
+                            >100</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+                    <div style="margin-top: 8px">
+                      <label style="display: block; margin-bottom: 2px"
+                        >Width:</label
+                      >
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="rectArea-width"
+                          min="10"
+                          max="300"
+                          step="5"
+                          value="100"
+                        />
+                        <span id="rectArea-width-value" class="slider-value"
+                          >100</span
+                        >
+                      </div>
+                    </div>
+                    <div style="margin-top: 8px">
+                      <label style="display: block; margin-bottom: 2px"
+                        >Height:</label
+                      >
+                      <div class="slider-with-value">
+                        <input
+                          type="range"
+                          id="rectArea-height"
+                          min="10"
+                          max="300"
+                          step="5"
+                          value="100"
+                        />
+                        <span id="rectArea-height-value" class="slider-value"
+                          >100</span
+                        >
+                      </div>
+                    </div>
+                    <div>
+                      <label style="display: block; margin-bottom: 2px"
+                        >Color:</label
+                      >
+                      <div class="color-palette">
+                        <button
+                          class="rectArea-color-btn color-palette-btn"
+                          data-color="0xFFFFFF"
+                          style="background: #ffffff"
+                        ></button>
+                        <button
+                          class="rectArea-color-btn color-palette-btn"
+                          data-color="0xFFF8E1"
+                          style="background: #fff8e1"
+                        ></button>
+                        <button
+                          class="rectArea-color-btn color-palette-btn"
+                          data-color="0xE1F5FE"
+                          style="background: #e1f5fe"
+                        ></button>
+                        <button
+                          class="rectArea-color-btn color-palette-btn"
+                          data-color="0xF3E5F5"
+                          style="background: #f3e5f5"
+                        ></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Global Light Settings -->
+              <div class="control-section">
+                <label
+                  style="
+                    display: block;
+                    margin-bottom: 10px;
+                    font-weight: 600;
+                    color: var(--text-color);
+                  "
+                  >Global Light Settings:</label
+                >
+                <div style="margin-bottom: 10px">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="show-light-helpers" />
+                    <span>Show Light Helpers</span>
+                  </label>
+                </div>
+                <div style="margin-bottom: 15px">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="global-shadow" checked />
+                    <span>Enable Shadows</span>
+                  </label>
+                </div>
+                <button id="reset-lights">Reset All Lights</button>
+              </div>
             </div>
-            <div style="margin-top: 8px">
-              <label style="display: flex; align-items: center; gap: 5px">
-                <input type="checkbox" id="global-shadow" checked />
-                <span>Enable Shadows</span>
-              </label>
-            </div>
-            <button
-              id="reset-lights"
-              style="margin-top: 8px; padding: 5px 10px; width: 100%"
-            >
-              Reset All Lights
-            </button>
           </div>
         </div>
 
-        <!-- Handles Controls -->
-        <div class="control-section">
-          <label class="section-title">Manipulation:</label>
-          <div>
-            <button id="toggle-handles" style="width: 100%; padding: 5px">
-              Toggle Handles
-            </button>
+        <!-- Manipulation Controls -->
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Manipulation</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <button id="toggle-handles">Toggle Handles</button>
+            </div>
           </div>
         </div>
-        
+
         <!-- Export Controls -->
-        <div class="control-section">
-          <label class="section-title">Export:</label>
-          <div style="display: flex; gap: 5px">
-            <button id="export-gltf" style="flex: 1; padding: 5px">GLTF</button>
-            <button id="export-obj" style="flex: 1; padding: 5px">OBJ</button>
-            <button id="export-stl" style="flex: 1; padding: 5px">STL</button>
-          </div>
-          <div style="margin-top: 5px">
-            <label
-              for="canvas-width"
-              style="display: block; margin-bottom: 5px"
-            >
-              Canvas Width:
-            </label>
-            <input
-              type="number"
-              id="output-width"
-              value="1000"
-              min="100"
-              style="width: 100%; padding: 5px; margin-bottom: 10px"
-            />
+        <div class="collapsible-section">
+          <button class="collapsible">
+            <span>Export Options</span>
+            <span class="toggle-sign">+</span>
+          </button>
+          <div class="collapsible-content">
+            <div class="control-section-inner">
+              <div class="button-group">
+                <button id="export-gltf">GLTF</button>
+                <button id="export-obj">OBJ</button>
+                <button id="export-stl">STL</button>
+              </div>
 
-            <label
-              for="canvas-height"
-              style="display: block; margin-bottom: 5px"
-            >
-              Canvas Height:
-            </label>
-            <input
-              type="number"
-              id="output-height"
-              value="1000"
-              min="100"
-              style="width: 100%; padding: 5px; margin-bottom: 10px"
-            />
+              <div style="margin-top: 15px">
+                <label for="output-width">Canvas Width:</label>
+                <input type="number" id="output-width" value="1000" min="100" />
+              </div>
 
-            <button id="take-screenshot" style="width: 100%; padding: 5px">
-              Screenshot
-            </button>
+              <div style="margin-top: 10px">
+                <label for="output-height">Canvas Height:</label>
+                <input
+                  type="number"
+                  id="output-height"
+                  value="1000"
+                  min="100"
+                />
+              </div>
+
+              <button id="take-screenshot" style="margin-top: 15px">
+                Screenshot
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Reload SVG Button -->
-        <button
-          id="reload-svg"
-          style="width: 100%; padding: 8px; margin-top: 15px"
-        >
-          Reload SVG
-        </button>
+        <button id="reload-svg" class="main-button">Reload SVG</button>
       </div>
 
       <div class="canvas-container">
@@ -1313,22 +1586,323 @@
 
     <!-- Collapsible sections script -->
     <script>
+      // document.addEventListener("DOMContentLoaded", function () {
+      //   const collapsibles = document.getElementsByClassName("collapsible");
+
+      //   for (let i = 0; i < collapsibles.length; i++) {
+      //     collapsibles[i].addEventListener("click", function () {
+      //       this.classList.toggle("active");
+      //       const content = this.nextElementSibling;
+      //       const toggleSign = this.querySelector(".toggle-sign");
+
+      //       // Track if this is a top-level section (not a sub-collapsible)
+      //       const isTopLevel = !this.classList.contains("sub-collapsible");
+      //       // Find parent collapsible content if this is a sub-collapsible
+      //       const parentContent = isTopLevel
+      //         ? null
+      //         : this.closest(".collapsible-content");
+
+      //       if (content.classList.contains("active")) {
+      //         // Collapsing
+      //         content.classList.remove("active");
+      //         toggleSign.innerHTML = "+";
+      //         content.style.maxHeight = null;
+
+      //         // If this is a nested section being closed, update parent height
+      //         if (!isTopLevel && parentContent) {
+      //           updateParentHeight(parentContent);
+      //         }
+      //       } else {
+      //         // Expanding
+      //         content.classList.add("active");
+      //         toggleSign.innerHTML = "-";
+
+      //         if (isTopLevel) {
+      //           // Top-level sections get a generous height
+      //           content.style.maxHeight = "2000px";
+      //           content.style.overflowY = "scroll";
+      //         } else {
+      //           // For nested sections, we need to handle the parent height
+      //           // First ensure this section has enough height
+      //           content.style.maxHeight = "1000px";
+
+      //           // Then update the parent's height to accommodate
+      //           setTimeout(() => {
+      //             updateParentHeight(parentContent);
+      //           }, 10);
+      //         }
+      //       }
+      //     });
+      //   }
+
+      //   // Function to update parent section max height based on all children
+      //   function updateParentHeight(parentElement) {
+      //     // If parent isn't active, don't adjust its height
+      //     if (!parentElement.classList.contains("active")) {
+      //       return;
+      //     }
+
+      //     // Get all active subsections
+      //     const childContents = parentElement.querySelectorAll(
+      //       ".collapsible-content.active"
+      //     );
+
+      //     // Calculate total content height needed
+      //     let totalHeight = 0;
+
+      //     // Base height for padding, controls and global settings
+      //     totalHeight += 100;
+
+      //     // Add height for each collapsible button
+      //     const buttons = parentElement.querySelectorAll(".collapsible");
+      //     buttons.forEach((button) => {
+      //       totalHeight += button.offsetHeight + 10; // Button height + margin
+      //     });
+
+      //     // Add height for each active subsection
+      //     childContents.forEach((child) => {
+      //       // Only count direct children of this parent
+      //       if (child.parentElement === parentElement) {
+      //         totalHeight += child.scrollHeight;
+      //       }
+      //     });
+
+      //     // Add some extra padding
+      //     totalHeight += 100;
+
+      //     // Set the parent max height
+      //     parentElement.style.maxHeight = totalHeight + "px";
+      //   }
+
+      //   // Handler for top-level section collapse
+      //   // This ensures when a top-level section is collapsed, all subsections are properly reset
+      //   const topLevelCollapsibles = document.querySelectorAll(
+      //     ".collapsible:not(.sub-collapsible)"
+      //   );
+      //   topLevelCollapsibles.forEach((topButton) => {
+      //     topButton.addEventListener("click", function () {
+      //       if (!this.classList.contains("active")) {
+      //         // When collapsing a top section, reset all its subsections
+      //         const subSections = this.nextElementSibling.querySelectorAll(
+      //           ".collapsible.sub-collapsible"
+      //         );
+      //         subSections.forEach((subButton) => {
+      //           const subContent = subButton.nextElementSibling;
+      //           if (subContent.classList.contains("active")) {
+      //             // Reset the subsection
+      //             subButton.classList.remove("active");
+      //             subContent.classList.remove("active");
+      //             subButton.querySelector(".toggle-sign").innerHTML = "+";
+      //             subContent.style.maxHeight = null;
+      //           }
+      //         });
+      //       }
+      //     });
+      //   });
+
+      //   // Open the first section by default
+      //   if (collapsibles.length > 0) {
+      //     collapsibles[0].click();
+      //   }
+
+      //   // Update slider values display
+      //   const sliders = document.querySelectorAll('input[type="range"]');
+      //   sliders.forEach((slider) => {
+      //     const valueDisplay = document.getElementById(`${slider.id}-value`);
+      //     if (valueDisplay) {
+      //       slider.addEventListener("input", () => {
+      //         let displayValue = slider.value;
+
+      //         // Format special values
+      //         if (slider.id === "spot-angle") {
+      //           displayValue = `${slider.value}°`;
+      //         } else if (
+      //           slider.id.includes("decay") ||
+      //           slider.id.includes("roughness") ||
+      //           slider.id.includes("metalness") ||
+      //           slider.id.includes("hemisphere-intensity") ||
+      //           slider.id.includes("rectArea-intensity") ||
+      //           slider.id.includes("ambient-intensity") ||
+      //           slider.id.includes("directional-intensity")
+      //         ) {
+      //           // Format floating point values to one decimal place
+      //           displayValue = parseFloat(slider.value).toFixed(1);
+      //         }
+
+      //         valueDisplay.textContent = displayValue;
+      //       });
+      //     }
+      //   });
+      // });
+
       document.addEventListener("DOMContentLoaded", function () {
-        var coll = document.getElementsByClassName("collapsible");
-        for (var i = 0; i < coll.length; i++) {
-          coll[i].addEventListener("click", function () {
+        const collapsibles = document.getElementsByClassName("collapsible");
+        const SCROLL_THRESHOLD = 500; // px - when content exceeds this height, enable scrolling
+
+        for (let i = 0; i < collapsibles.length; i++) {
+          collapsibles[i].addEventListener("click", function () {
             this.classList.toggle("active");
-            var content = this.nextElementSibling;
-            var toggleSign = this.querySelector(".toggle-sign");
-            if (content.style.maxHeight) {
-              content.style.maxHeight = null;
+            const content = this.nextElementSibling;
+            const toggleSign = this.querySelector(".toggle-sign");
+
+            // Track if this is a top-level section (not a sub-collapsible)
+            const isTopLevel = !this.classList.contains("sub-collapsible");
+            // Find parent collapsible content if this is a sub-collapsible
+            const parentContent = isTopLevel
+              ? null
+              : this.closest(".collapsible-content");
+
+            if (content.classList.contains("active")) {
+              // Collapsing
+              content.classList.remove("active");
               toggleSign.innerHTML = "+";
+              content.style.maxHeight = null;
+              content.style.overflowY = "hidden"; // Reset overflow
+
+              // If this is a nested section being closed, update parent height
+              if (!isTopLevel && parentContent) {
+                updateParentHeight(parentContent);
+              }
             } else {
-              content.style.maxHeight = content.scrollHeight + "px";
+              // Expanding
+              content.classList.add("active");
               toggleSign.innerHTML = "-";
+
+              if (isTopLevel) {
+                // Set a large max-height initially
+                content.style.maxHeight = "2000px";
+
+                // Check if content needs scrolling (after a brief delay to allow rendering)
+                setTimeout(() => {
+                  // If content's scroll height exceeds threshold, enable scrolling
+                  if (content.scrollHeight > SCROLL_THRESHOLD) {
+                    content.style.maxHeight = SCROLL_THRESHOLD + "px";
+                    content.style.overflowY = "scroll";
+                  } else {
+                    // Otherwise, let it expand naturally
+                    content.style.overflowY = "hidden";
+                  }
+                }, 10);
+              } else {
+                // For nested sections, we need to handle the parent height
+                // First ensure this section has enough height
+                content.style.maxHeight = "1000px";
+
+                // Then update the parent's height to accommodate
+                setTimeout(() => {
+                  updateParentHeight(parentContent);
+                }, 10);
+              }
             }
           });
         }
+
+        // Function to update parent section max height based on all children
+        function updateParentHeight(parentElement) {
+          // If parent isn't active, don't adjust its height
+          if (!parentElement.classList.contains("active")) {
+            return;
+          }
+
+          // Get all active subsections
+          const childContents = parentElement.querySelectorAll(
+            ".collapsible-content.active"
+          );
+
+          // Calculate total content height needed
+          let totalHeight = 0;
+
+          // Base height for padding, controls and global settings
+          totalHeight += 100;
+
+          // Add height for each collapsible button
+          const buttons = parentElement.querySelectorAll(".collapsible");
+          buttons.forEach((button) => {
+            totalHeight += button.offsetHeight + 10; // Button height + margin
+          });
+
+          // Add height for each active subsection
+          childContents.forEach((child) => {
+            // Only count direct children of this parent
+            if (child.parentElement === parentElement) {
+              totalHeight += child.scrollHeight;
+            }
+          });
+
+          // Add some extra padding
+          totalHeight += 100;
+
+          // Check if we need scrolling based on total height
+          if (totalHeight > SCROLL_THRESHOLD) {
+            parentElement.style.maxHeight = SCROLL_THRESHOLD + "px";
+            parentElement.style.overflowY = "scroll";
+          } else {
+            // Otherwise, set the calculated height without scrolling
+            parentElement.style.maxHeight = totalHeight + "px";
+            parentElement.style.overflowY = "hidden";
+          }
+        }
+
+        // Handler for top-level section collapse
+        // This ensures when a top-level section is collapsed, all subsections are properly reset
+        const topLevelCollapsibles = document.querySelectorAll(
+          ".collapsible:not(.sub-collapsible)"
+        );
+        topLevelCollapsibles.forEach((topButton) => {
+          topButton.addEventListener("click", function () {
+            if (!this.classList.contains("active")) {
+              // When collapsing a top section, reset all its subsections
+              const subSections = this.nextElementSibling.querySelectorAll(
+                ".collapsible.sub-collapsible"
+              );
+              subSections.forEach((subButton) => {
+                const subContent = subButton.nextElementSibling;
+                if (subContent.classList.contains("active")) {
+                  // Reset the subsection
+                  subButton.classList.remove("active");
+                  subContent.classList.remove("active");
+                  subButton.querySelector(".toggle-sign").innerHTML = "+";
+                  subContent.style.maxHeight = null;
+                  subContent.style.overflowY = "hidden"; // Reset overflow
+                }
+              });
+            }
+          });
+        });
+
+        // Open the first section by default
+        if (collapsibles.length > 0) {
+          collapsibles[0].click();
+        }
+
+        // Update slider values display
+        const sliders = document.querySelectorAll('input[type="range"]');
+        sliders.forEach((slider) => {
+          const valueDisplay = document.getElementById(`${slider.id}-value`);
+          if (valueDisplay) {
+            slider.addEventListener("input", () => {
+              let displayValue = slider.value;
+
+              // Format special values
+              if (slider.id === "spot-angle") {
+                displayValue = `${slider.value}°`;
+              } else if (
+                slider.id.includes("decay") ||
+                slider.id.includes("roughness") ||
+                slider.id.includes("metalness") ||
+                slider.id.includes("hemisphere-intensity") ||
+                slider.id.includes("rectArea-intensity") ||
+                slider.id.includes("ambient-intensity") ||
+                slider.id.includes("directional-intensity")
+              ) {
+                // Format floating point values to one decimal place
+                displayValue = parseFloat(slider.value).toFixed(1);
+              }
+
+              valueDisplay.textContent = displayValue;
+            });
+          }
+        });
       });
     </script>
 

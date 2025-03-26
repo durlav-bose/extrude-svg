@@ -1278,6 +1278,20 @@ function applyMaterialType(type, group) {
         roughness: 0.8,
       });
       break;
+    case "chrome":
+      material = new THREE.MeshStandardMaterial({
+        color: threeColor || 0x156289,
+        metalness: 1.0,
+        roughness: 0.0,
+      });
+      break;
+    case "matte":
+      material = new THREE.MeshStandardMaterial({
+        color: threeColor || 0x156289,
+        metalness: 0.0,
+        roughness: 0.9,
+      });
+      break;
   }
 
   // Apply the material to all meshes
