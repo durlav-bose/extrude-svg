@@ -1577,6 +1577,7 @@
 
         <!-- Reload SVG Button -->
         <button id="reload-svg" class="main-button">Reload SVG</button>
+        <button id="save-details" class="main-button">Save details</button>
       </div>
 
       <div class="canvas-container">
@@ -1586,155 +1587,6 @@
 
     <!-- Collapsible sections script -->
     <script>
-      // document.addEventListener("DOMContentLoaded", function () {
-      //   const collapsibles = document.getElementsByClassName("collapsible");
-
-      //   for (let i = 0; i < collapsibles.length; i++) {
-      //     collapsibles[i].addEventListener("click", function () {
-      //       this.classList.toggle("active");
-      //       const content = this.nextElementSibling;
-      //       const toggleSign = this.querySelector(".toggle-sign");
-
-      //       // Track if this is a top-level section (not a sub-collapsible)
-      //       const isTopLevel = !this.classList.contains("sub-collapsible");
-      //       // Find parent collapsible content if this is a sub-collapsible
-      //       const parentContent = isTopLevel
-      //         ? null
-      //         : this.closest(".collapsible-content");
-
-      //       if (content.classList.contains("active")) {
-      //         // Collapsing
-      //         content.classList.remove("active");
-      //         toggleSign.innerHTML = "+";
-      //         content.style.maxHeight = null;
-
-      //         // If this is a nested section being closed, update parent height
-      //         if (!isTopLevel && parentContent) {
-      //           updateParentHeight(parentContent);
-      //         }
-      //       } else {
-      //         // Expanding
-      //         content.classList.add("active");
-      //         toggleSign.innerHTML = "-";
-
-      //         if (isTopLevel) {
-      //           // Top-level sections get a generous height
-      //           content.style.maxHeight = "2000px";
-      //           content.style.overflowY = "scroll";
-      //         } else {
-      //           // For nested sections, we need to handle the parent height
-      //           // First ensure this section has enough height
-      //           content.style.maxHeight = "1000px";
-
-      //           // Then update the parent's height to accommodate
-      //           setTimeout(() => {
-      //             updateParentHeight(parentContent);
-      //           }, 10);
-      //         }
-      //       }
-      //     });
-      //   }
-
-      //   // Function to update parent section max height based on all children
-      //   function updateParentHeight(parentElement) {
-      //     // If parent isn't active, don't adjust its height
-      //     if (!parentElement.classList.contains("active")) {
-      //       return;
-      //     }
-
-      //     // Get all active subsections
-      //     const childContents = parentElement.querySelectorAll(
-      //       ".collapsible-content.active"
-      //     );
-
-      //     // Calculate total content height needed
-      //     let totalHeight = 0;
-
-      //     // Base height for padding, controls and global settings
-      //     totalHeight += 100;
-
-      //     // Add height for each collapsible button
-      //     const buttons = parentElement.querySelectorAll(".collapsible");
-      //     buttons.forEach((button) => {
-      //       totalHeight += button.offsetHeight + 10; // Button height + margin
-      //     });
-
-      //     // Add height for each active subsection
-      //     childContents.forEach((child) => {
-      //       // Only count direct children of this parent
-      //       if (child.parentElement === parentElement) {
-      //         totalHeight += child.scrollHeight;
-      //       }
-      //     });
-
-      //     // Add some extra padding
-      //     totalHeight += 100;
-
-      //     // Set the parent max height
-      //     parentElement.style.maxHeight = totalHeight + "px";
-      //   }
-
-      //   // Handler for top-level section collapse
-      //   // This ensures when a top-level section is collapsed, all subsections are properly reset
-      //   const topLevelCollapsibles = document.querySelectorAll(
-      //     ".collapsible:not(.sub-collapsible)"
-      //   );
-      //   topLevelCollapsibles.forEach((topButton) => {
-      //     topButton.addEventListener("click", function () {
-      //       if (!this.classList.contains("active")) {
-      //         // When collapsing a top section, reset all its subsections
-      //         const subSections = this.nextElementSibling.querySelectorAll(
-      //           ".collapsible.sub-collapsible"
-      //         );
-      //         subSections.forEach((subButton) => {
-      //           const subContent = subButton.nextElementSibling;
-      //           if (subContent.classList.contains("active")) {
-      //             // Reset the subsection
-      //             subButton.classList.remove("active");
-      //             subContent.classList.remove("active");
-      //             subButton.querySelector(".toggle-sign").innerHTML = "+";
-      //             subContent.style.maxHeight = null;
-      //           }
-      //         });
-      //       }
-      //     });
-      //   });
-
-      //   // Open the first section by default
-      //   if (collapsibles.length > 0) {
-      //     collapsibles[0].click();
-      //   }
-
-      //   // Update slider values display
-      //   const sliders = document.querySelectorAll('input[type="range"]');
-      //   sliders.forEach((slider) => {
-      //     const valueDisplay = document.getElementById(`${slider.id}-value`);
-      //     if (valueDisplay) {
-      //       slider.addEventListener("input", () => {
-      //         let displayValue = slider.value;
-
-      //         // Format special values
-      //         if (slider.id === "spot-angle") {
-      //           displayValue = `${slider.value}°`;
-      //         } else if (
-      //           slider.id.includes("decay") ||
-      //           slider.id.includes("roughness") ||
-      //           slider.id.includes("metalness") ||
-      //           slider.id.includes("hemisphere-intensity") ||
-      //           slider.id.includes("rectArea-intensity") ||
-      //           slider.id.includes("ambient-intensity") ||
-      //           slider.id.includes("directional-intensity")
-      //         ) {
-      //           // Format floating point values to one decimal place
-      //           displayValue = parseFloat(slider.value).toFixed(1);
-      //         }
-
-      //         valueDisplay.textContent = displayValue;
-      //       });
-      //     }
-      //   });
-      // });
-
       document.addEventListener("DOMContentLoaded", function () {
         const collapsibles = document.getElementsByClassName("collapsible");
         const SCROLL_THRESHOLD = 500; // px - when content exceeds this height, enable scrolling
@@ -1907,6 +1759,6 @@
     </script>
 
     <!-- Main script -->
-    <script type="module" src="src/lightTest.js"></script>
+    <script type="module" src="src/saveAndReload.js"></script>
   </body>
 </html>
