@@ -8,6 +8,10 @@ import { DragControls } from "three/examples/jsm/controls/DragControls";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RectAreaLightHelper } from "three/examples/jsm/helpers/RectAreaLightHelper.js";
 
+// Add a global variable to store handle state if handles aren't created yet
+let pendingHandlesState = null;
+window.preserveCurrentPosition = false;
+
 let outputWidth = 1000;
 let outputHeight = 1000;
 let threeColor = new THREE.Color(0x00ff00);
@@ -264,60 +268,6 @@ function createThickLineFromPoints(points, thickness = 1.5) {
   return lineShapes;
 }
 
-// Export helper functions
-function saveArrayBuffer(buffer, filename) {
-  const blob = new Blob([buffer], { type: "application/octet-stream" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-}
-
-function saveString(text, filename) {
-  const blob = new Blob([text], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-}
-
-// Export functions
-function exportToGLTF(input) {
-  const gltfExporter = new GLTFExporter();
-  const options = {
-    trs: false,
-    onlyVisible: true,
-    truncateDrawRange: true,
-    binary: false,
-    maxTextureSize: 4096,
-  };
-
-  gltfExporter.parse(
-    input,
-    function (result) {
-      if (result instanceof ArrayBuffer) {
-        saveArrayBuffer(result, "extruded-svg.glb");
-      } else {
-        const output = JSON.stringify(result, null, 2);
-        saveString(output, "extruded-svg.gltf");
-      }
-    },
-    options
-  );
-}
-
-function exportToOBJ(input) {
-  const objExporter = new OBJExporter();
-  const result = objExporter.parse(input);
-  saveString(result, "extruded-svg.obj");
-}
-
-function exportToSTL(input) {
-  const stlExporter = new STLExporter();
-  const result = stlExporter.parse(input, { binary: true });
-  saveArrayBuffer(result, "extruded-svg.stl");
-}
-
 // Handle functions
 function createMovementHandle() {
   // Create a simple visual marker for the handle
@@ -414,23 +364,33 @@ function setupHandles() {
   svgGroup.position.sub(svgCenter);
 
   // Position the rotation group at the center of the viewport
-  rotationGroup.position.set(0, 0, 0);
+  // Only set initial position if we're not restoring a state
+  if (!pendingHandlesState) {
+    rotationGroup.position.set(0, 0, 0);
+  }
 
   // Create and position the handles
   movementHandle = createMovementHandle();
   scene.add(movementHandle);
-  movementHandle.position.set(0, 0, 5); // Center of viewport
+
+  // Only set initial position if we're not restoring a state
+  if (!pendingHandlesState || !pendingHandlesState.movementHandle) {
+    movementHandle.position.set(0, 0, 5); // Center of viewport
+  }
 
   // Create rotation handle
   rotationHandle = createRotationHandle();
   rotationGroup.add(rotationHandle);
 
   // Position rotation handle at the edge
-  const handleOffset = {
-    x: svgWidth / 2 + 20,
-    y: svgHeight / 2 + 20,
-  };
-  rotationHandle.position.set(handleOffset.x, handleOffset.y, 5);
+  // Only set initial position if we're not restoring a state
+  if (!pendingHandlesState || !pendingHandlesState.rotationHandle) {
+    const handleOffset = {
+      x: svgWidth / 2 + 20,
+      y: svgHeight / 2 + 20,
+    };
+    rotationHandle.position.set(handleOffset.x, handleOffset.y, 5);
+  }
 
   // Setup drag controls for movement handle
   const movementControls = new DragControls(
@@ -513,6 +473,12 @@ function setupHandles() {
   rotationControls.addEventListener("dragend", () => {
     controls.enabled = true;
   });
+
+  // Apply any pending handle state at the end of setupHandles
+  if (pendingHandlesState) {
+    applyHandlesState(pendingHandlesState);
+    pendingHandlesState = null;
+  }
 }
 
 function updateHandlesVisibility(visible) {
@@ -704,7 +670,195 @@ function takeScreenshot() {
   updateHandlesVisibility(handlesVisible);
 }
 
+let isLoadingSVG = false;
+
+function captureCurrentViewState() {
+  if (!camera || !controls || !rotationGroup) return null;
+
+  return {
+    camera: {
+      position: {
+        x: camera.position.x,
+        y: camera.position.y,
+        z: camera.position.z,
+      },
+      rotation: {
+        x: camera.rotation.x,
+        y: camera.rotation.y,
+        z: camera.rotation.z,
+        order: camera.rotation.order,
+      },
+      zoom: camera.zoom,
+    },
+    controls: {
+      target: {
+        x: controls.target.x,
+        y: controls.target.y,
+        z: controls.target.z,
+      },
+    },
+    model: {
+      rotation: {
+        x: rotationGroup.rotation.x,
+        y: rotationGroup.rotation.y,
+        z: rotationGroup.rotation.z,
+      },
+      position: {
+        x: rotationGroup.position.x,
+        y: rotationGroup.position.y,
+        z: rotationGroup.position.z,
+      },
+    },
+    handles:
+      movementHandle && rotationHandle
+        ? {
+            currentRotation: currentRotation,
+            movementHandle: {
+              position: {
+                x: movementHandle.position.x,
+                y: movementHandle.position.y,
+                z: movementHandle.position.z,
+              },
+              visible: movementHandle.visible,
+            },
+            rotationHandle: {
+              position: {
+                x: rotationHandle.position.x,
+                y: rotationHandle.position.y,
+                z: rotationHandle.position.z,
+              },
+              visible: rotationHandle.visible,
+            },
+          }
+        : null,
+  };
+}
+
 function loadSVG(url) {
+  // Prevent multiple simultaneous loads
+  if (isLoadingSVG) {
+    console.log("Already loading SVG, ignoring duplicate call");
+    return;
+  }
+
+  isLoadingSVG = true;
+
+  // Get the saved state before loading if it exists
+  const savedState = localStorage.getItem("svgViewState");
+  let viewState = null;
+
+  if (savedState) {
+    try {
+      viewState = JSON.parse(savedState);
+      console.log(
+        "Loaded saved state for restoring during SVG load:",
+        viewState
+      );
+
+      // Apply rendering settings right away
+      if (viewState.rendering) {
+        // Model color will be applied after SVG loads
+
+        // Background color
+        if (viewState.rendering.backgroundColor !== null) {
+          scene.background = new THREE.Color(
+            viewState.rendering.backgroundColor
+          );
+        }
+
+        // Save extrusion settings to window
+        window.customExtrusionDepth =
+          window.customExtrusionDepth ?? viewState.rendering.extrusionDepth;
+        window.customBevelEnabled =
+          window.customBevelEnabled ?? viewState.rendering.bevelEnabled;
+        window.customCurveSegments =
+          window.customCurveSegments ?? viewState.rendering.curveSegments;
+        window.customMetalness =
+          window.customMetalness ?? viewState.rendering.metalness;
+        window.customRoughness =
+          window.customRoughness ?? viewState.rendering.roughness;
+      }
+
+      // Apply lighting settings
+      if (viewState.lighting && window.lights) {
+        Object.keys(viewState.lighting).forEach((lightType) => {
+          const savedLight = viewState.lighting[lightType];
+          const light = window.lights[lightType];
+
+          if (light && savedLight) {
+            if (savedLight.visible !== undefined)
+              light.visible = savedLight.visible;
+            if (savedLight.intensity !== undefined)
+              light.intensity = savedLight.intensity;
+            if (savedLight.color !== undefined)
+              light.color.setHex(savedLight.color);
+
+            if (savedLight.position && light.position) {
+              light.position.set(
+                savedLight.position.x,
+                savedLight.position.y,
+                savedLight.position.z
+              );
+            }
+
+            // Apply type-specific properties
+            if (lightType === "spot") {
+              if (savedLight.angle !== undefined)
+                light.angle = savedLight.angle;
+              if (savedLight.distance !== undefined)
+                light.distance = savedLight.distance;
+              if (savedLight.decay !== undefined)
+                light.decay = savedLight.decay;
+              if (savedLight.target && light.target) {
+                light.target.position.set(
+                  savedLight.target.x,
+                  savedLight.target.y,
+                  savedLight.target.z
+                );
+              }
+            } else if (lightType === "point") {
+              if (savedLight.distance !== undefined)
+                light.distance = savedLight.distance;
+              if (savedLight.decay !== undefined)
+                light.decay = savedLight.decay;
+            } else if (lightType === "hemisphere" && savedLight.groundColor) {
+              light.groundColor.setHex(savedLight.groundColor);
+            } else if (lightType === "rectArea") {
+              if (savedLight.width !== undefined)
+                light.width = savedLight.width;
+              if (savedLight.height !== undefined)
+                light.height = savedLight.height;
+              // Update lookAt after position/dimension changes
+              light.lookAt(0, 0, 0);
+            }
+          }
+        });
+
+        // Update light helpers
+        updateLightHelpers();
+      }
+    } catch (error) {
+      console.error("Error parsing saved state:", error);
+      viewState = null;
+    }
+  }
+
+  // Store current position/transformation state before reloading
+  let currentPositionState = null;
+
+  // Use the snapshot if we have it, otherwise try to capture current state
+  if (window.preserveCurrentPosition) {
+    if (window.currentPositionSnapshot) {
+      currentPositionState = window.currentPositionSnapshot;
+      console.log("Using position state snapshot");
+      // Clear the snapshot after using it
+      window.currentPositionSnapshot = null;
+    } else if (camera && controls && rotationGroup) {
+      console.log("Capturing current position state");
+      currentPositionState = captureCurrentViewState();
+    }
+  }
+
   // Store the URL for reloading
   window.lastLoadedSvgUrl = url;
 
@@ -731,11 +885,15 @@ function loadSVG(url) {
 
       let counter = 0;
 
+      // Set model color from saved state if available
+      if (viewState && viewState.rendering && viewState.rendering.modelColor) {
+        threeColor = new THREE.Color(viewState.rendering.modelColor);
+      }
+
       // Process all paths from the SVG
       data.paths.forEach((path, pathIndex) => {
         try {
           counter++;
-          // console.log("Processing path:", pathIndex);
 
           // Get style from path userData
           const pathStyle = path.userData?.style || {};
@@ -750,7 +908,6 @@ function loadSVG(url) {
             (fillColor === "none" || !fillColor) &&
             (strokeColor === "none" || !strokeColor)
           ) {
-            // console.log(`Skipping path ${pathIndex} with no fill or stroke`);
             return;
           }
 
@@ -759,14 +916,20 @@ function loadSVG(url) {
             // Create fill material
             let fillMaterial;
             try {
-              const color = new THREE.Color(fillColor);
-              threeColor = color;
-              console.log("threeColor ------------- ", threeColor);
+              // Use saved color if available, otherwise use the path's color
+              const color =
+                viewState && viewState.rendering
+                  ? threeColor
+                  : new THREE.Color(fillColor);
+
+              if (!viewState || !viewState.rendering) {
+                threeColor = color; // Only update threeColor if not from saved state
+              }
 
               fillMaterial = new THREE.MeshStandardMaterial({
                 color: color,
                 side: THREE.DoubleSide,
-                flatShading: false, // Changed from true for smooth shading
+                flatShading: false,
                 transparent: fillOpacity !== undefined && fillOpacity < 1,
                 opacity:
                   fillOpacity !== undefined ? parseFloat(fillOpacity) : 1,
@@ -780,7 +943,7 @@ function loadSVG(url) {
               fillMaterial = new THREE.MeshStandardMaterial({
                 color: 0x00ff00,
                 side: THREE.DoubleSide,
-                flatShading: false, // Changed from true for smooth shading
+                flatShading: false,
                 metalness: window.customMetalness || 0.8,
                 roughness: window.customRoughness || 0.2,
               });
@@ -863,11 +1026,16 @@ function loadSVG(url) {
               // Create stroke material
               let strokeMaterial;
               try {
-                const color = new THREE.Color(strokeColor);
+                // Use saved color if available, otherwise use the original stroke color
+                const color =
+                  viewState && viewState.rendering
+                    ? threeColor
+                    : new THREE.Color(strokeColor);
+
                 strokeMaterial = new THREE.MeshStandardMaterial({
                   color: color,
                   side: THREE.DoubleSide,
-                  flatShading: false, // Changed from true for smooth shading
+                  flatShading: false,
                   transparent: strokeOpacity !== undefined && strokeOpacity < 1,
                   opacity:
                     strokeOpacity !== undefined ? parseFloat(strokeOpacity) : 1,
@@ -881,7 +1049,7 @@ function loadSVG(url) {
                 strokeMaterial = new THREE.MeshStandardMaterial({
                   color: 0x444444,
                   side: THREE.DoubleSide,
-                  flatShading: false, // Changed from true for smooth shading
+                  flatShading: false,
                   metalness: window.customMetalness || 0.8,
                   roughness: window.customRoughness || 0.2,
                 });
@@ -1056,13 +1224,223 @@ function loadSVG(url) {
         // Now that SVG is processed, setup the handles
         setupHandles();
 
-        console.log("SVG processing complete");
+        // Determine whether to use stored position or saved state
+        if (window.preserveCurrentPosition && currentPositionState) {
+          console.log("Preserving current position state");
+
+          // Apply camera position
+          if (currentPositionState.camera) {
+            if (currentPositionState.camera.position) {
+              camera.position.set(
+                currentPositionState.camera.position.x,
+                currentPositionState.camera.position.y,
+                currentPositionState.camera.position.z
+              );
+            }
+
+            if (currentPositionState.camera.rotation) {
+              if (currentPositionState.camera.rotation.order) {
+                camera.rotation.order =
+                  currentPositionState.camera.rotation.order;
+              }
+
+              camera.rotation.set(
+                currentPositionState.camera.rotation.x,
+                currentPositionState.camera.rotation.y,
+                currentPositionState.camera.rotation.z
+              );
+            }
+
+            if (currentPositionState.camera.zoom !== undefined) {
+              camera.zoom = currentPositionState.camera.zoom;
+            }
+
+            camera.updateProjectionMatrix();
+          }
+
+          // Apply controls
+          if (currentPositionState.controls && controls) {
+            if (currentPositionState.controls.target) {
+              controls.target.set(
+                currentPositionState.controls.target.x,
+                currentPositionState.controls.target.y,
+                currentPositionState.controls.target.z
+              );
+            }
+
+            controls.update();
+          }
+
+          // Apply model position/rotation
+          if (currentPositionState.model && rotationGroup) {
+            if (currentPositionState.model.rotation) {
+              rotationGroup.rotation.set(
+                currentPositionState.model.rotation.x,
+                currentPositionState.model.rotation.y,
+                currentPositionState.model.rotation.z
+              );
+            }
+
+            if (currentPositionState.model.position) {
+              rotationGroup.position.set(
+                currentPositionState.model.position.x,
+                currentPositionState.model.position.y,
+                currentPositionState.model.position.z
+              );
+            }
+          }
+
+          // Apply handle state
+          if (currentPositionState.handles) {
+            if (currentPositionState.handles.currentRotation !== undefined) {
+              currentRotation = currentPositionState.handles.currentRotation;
+            }
+
+            if (currentPositionState.handles.movementHandle && movementHandle) {
+              if (currentPositionState.handles.movementHandle.position) {
+                movementHandle.position.set(
+                  currentPositionState.handles.movementHandle.position.x,
+                  currentPositionState.handles.movementHandle.position.y,
+                  currentPositionState.handles.movementHandle.position.z
+                );
+              }
+
+              if (
+                currentPositionState.handles.movementHandle.visible !==
+                undefined
+              ) {
+                movementHandle.visible =
+                  currentPositionState.handles.movementHandle.visible;
+              }
+            }
+
+            if (currentPositionState.handles.rotationHandle && rotationHandle) {
+              if (currentPositionState.handles.rotationHandle.position) {
+                rotationHandle.position.set(
+                  currentPositionState.handles.rotationHandle.position.x,
+                  currentPositionState.handles.rotationHandle.position.y,
+                  currentPositionState.handles.rotationHandle.position.z
+                );
+              }
+
+              if (
+                currentPositionState.handles.rotationHandle.visible !==
+                undefined
+              ) {
+                rotationHandle.visible =
+                  currentPositionState.handles.rotationHandle.visible;
+              }
+            }
+          }
+        }
+        // Apply saved state if not preserving current position
+        else if (viewState) {
+          console.log("Applying saved state position/rotation");
+
+          // Apply camera and controls
+          if (viewState.camera) {
+            if (viewState.camera.position) {
+              camera.position.set(
+                viewState.camera.position.x,
+                viewState.camera.position.y,
+                viewState.camera.position.z
+              );
+            }
+
+            if (viewState.camera.rotation) {
+              if (viewState.camera.rotation.order) {
+                camera.rotation.order = viewState.camera.rotation.order;
+              }
+
+              camera.rotation.set(
+                viewState.camera.rotation.x,
+                viewState.camera.rotation.y,
+                viewState.camera.rotation.z
+              );
+            }
+
+            if (viewState.camera.zoom !== undefined) {
+              camera.zoom = viewState.camera.zoom;
+            }
+
+            // Apply orthographic camera properties
+            if (camera.isOrthographicCamera) {
+              if (viewState.camera.left !== undefined)
+                camera.left = viewState.camera.left;
+              if (viewState.camera.right !== undefined)
+                camera.right = viewState.camera.right;
+              if (viewState.camera.top !== undefined)
+                camera.top = viewState.camera.top;
+              if (viewState.camera.bottom !== undefined)
+                camera.bottom = viewState.camera.bottom;
+              if (viewState.camera.near !== undefined)
+                camera.near = viewState.camera.near;
+              if (viewState.camera.far !== undefined)
+                camera.far = viewState.camera.far;
+            }
+
+            camera.updateProjectionMatrix();
+          }
+
+          // Apply controls state
+          if (viewState.controls && controls) {
+            if (viewState.controls.target) {
+              controls.target.set(
+                viewState.controls.target.x,
+                viewState.controls.target.y,
+                viewState.controls.target.z
+              );
+            }
+
+            controls.update();
+          }
+
+          // Apply model transformations
+          if (viewState.model) {
+            if (viewState.model.rotation) {
+              rotationGroup.rotation.set(
+                viewState.model.rotation.x,
+                viewState.model.rotation.y,
+                viewState.model.rotation.z
+              );
+            }
+
+            if (viewState.model.position) {
+              rotationGroup.position.set(
+                viewState.model.position.x,
+                viewState.model.position.y,
+                viewState.model.position.z
+              );
+            }
+          }
+
+          // Apply handle state
+          if (viewState.handles) {
+            applyHandlesState(viewState.handles);
+          }
+        }
+
+        // Reset the preserve flag after use
+        window.preserveCurrentPosition = false;
+
+        console.log("SVG processing complete and state restored");
       } else {
         console.error("No valid objects found in SVG");
       }
 
-      // Create UI Controls
+      // Create UI Controls and update to match saved state
       createUIControls(svgGroup);
+      if (viewState && viewState.rendering) {
+        updateUIFromSettings(viewState.rendering);
+      }
+
+      // Update lighting UI if needed
+      if (viewState && viewState.lighting) {
+        updateLightingControlsUI(viewState.lighting);
+      }
+
+      // Release the loading lock
+      isLoadingSVG = false;
     },
     // Progress callback
     function (xhr) {
@@ -1071,6 +1449,8 @@ function loadSVG(url) {
     // Error callback
     function (error) {
       console.error("Error loading SVG:", error);
+      // Release the loading lock on error
+      isLoadingSVG = false;
     }
   );
 }
@@ -1127,6 +1507,14 @@ function createUIControls(svgGroup) {
   document.getElementById("apply-depth").addEventListener("click", () => {
     const depth = parseInt(document.getElementById("extrusion-depth").value);
     window.customExtrusionDepth = depth;
+    window.preserveCurrentPosition = true;
+
+    // Update the saved state with the new depth value
+    updateSavedState((state) => {
+      if (!state.rendering) state.rendering = {};
+      state.rendering.extrusionDepth = depth;
+      return state;
+    });
 
     if (window.lastLoadedSvgUrl) {
       loadSVG(window.lastLoadedSvgUrl);
@@ -1149,19 +1537,6 @@ function createUIControls(svgGroup) {
       const currentVisibility = movementHandle.visible;
       updateHandlesVisibility(!currentVisibility);
     }
-  });
-
-  // Export buttons
-  document.getElementById("export-gltf").addEventListener("click", () => {
-    exportToGLTF(svgGroup);
-  });
-
-  document.getElementById("export-obj").addEventListener("click", () => {
-    exportToOBJ(svgGroup);
-  });
-
-  document.getElementById("export-stl").addEventListener("click", () => {
-    exportToSTL(svgGroup);
   });
 
   const outputWidthElement = document.getElementById("output-width");
@@ -1187,12 +1562,17 @@ function createUIControls(svgGroup) {
 
   // Reload button
   document.getElementById("reload-svg").addEventListener("click", () => {
+    window.preserveCurrentPosition = false;
     if (window.lastLoadedSvgUrl) {
       loadSVG(window.lastLoadedSvgUrl);
     } else {
       alert("No SVG has been loaded yet.");
     }
   });
+
+  document
+    .getElementById("save-details")
+    .addEventListener("click", saveCurrentState);
 
   // Add event listeners for material properties
   document.getElementById("metalness-slider").addEventListener("input", (e) => {
@@ -1226,11 +1606,19 @@ function createUIControls(svgGroup) {
   document.getElementById("apply-smoothing").addEventListener("click", () => {
     window.customBevelEnabled =
       document.getElementById("edge-bevel-enabled").checked;
-    console.log("window.customBevelEnabled :>> ", window.customBevelEnabled);
-    console.log("window.customCurveSegments :>> ", window.customCurveSegments);
     window.customCurveSegments = parseInt(
       document.getElementById("curve-segments").value
     );
+
+    window.preserveCurrentPosition = true;
+
+    // Update the saved state with the new smoothing values
+    updateSavedState((state) => {
+      if (!state.rendering) state.rendering = {};
+      state.rendering.bevelEnabled = window.customBevelEnabled;
+      state.rendering.curveSegments = window.customCurveSegments;
+      return state;
+    });
 
     if (window.lastLoadedSvgUrl) {
       loadSVG(window.lastLoadedSvgUrl);
@@ -1238,6 +1626,25 @@ function createUIControls(svgGroup) {
   });
 
   createLightingControls();
+}
+
+function updateSavedState(updateFn) {
+  const savedState = localStorage.getItem("svgViewState");
+  let state = {};
+
+  if (savedState) {
+    try {
+      state = JSON.parse(savedState);
+    } catch (e) {
+      console.error("Error parsing saved state:", e);
+    }
+  }
+
+  // Apply the update function to modify the state
+  state = updateFn(state);
+
+  // Save the updated state back to localStorage
+  localStorage.setItem("svgViewState", JSON.stringify(state));
 }
 
 function applyMaterialType(type, group) {
@@ -1907,15 +2314,682 @@ window.addEventListener("resize", () => {
   camera.updateProjectionMatrix();
 });
 
-// Start the application
+function restoreViewState() {
+  const savedState = localStorage.getItem("svgViewState");
+  if (!savedState) {
+    console.log("No saved view state found");
+    return false;
+  }
+
+  try {
+    const viewState = JSON.parse(savedState);
+    console.log("Restoring view state:", viewState);
+
+    // Restore camera position and rotation
+    if (viewState.camera) {
+      if (viewState.camera.position) {
+        camera.position.set(
+          viewState.camera.position.x,
+          viewState.camera.position.y,
+          viewState.camera.position.z
+        );
+      }
+
+      if (viewState.camera.rotation) {
+        // Set rotation order first if available
+        if (viewState.camera.rotation.order) {
+          camera.rotation.order = viewState.camera.rotation.order;
+        }
+
+        camera.rotation.set(
+          viewState.camera.rotation.x,
+          viewState.camera.rotation.y,
+          viewState.camera.rotation.z
+        );
+      }
+
+      if (viewState.camera.zoom !== undefined) {
+        camera.zoom = viewState.camera.zoom;
+      }
+
+      // Restore orthographic camera properties if needed
+      if (camera.isOrthographicCamera) {
+        if (viewState.camera.left !== undefined)
+          camera.left = viewState.camera.left;
+        if (viewState.camera.right !== undefined)
+          camera.right = viewState.camera.right;
+        if (viewState.camera.top !== undefined)
+          camera.top = viewState.camera.top;
+        if (viewState.camera.bottom !== undefined)
+          camera.bottom = viewState.camera.bottom;
+        if (viewState.camera.near !== undefined)
+          camera.near = viewState.camera.near;
+        if (viewState.camera.far !== undefined)
+          camera.far = viewState.camera.far;
+      }
+
+      camera.updateProjectionMatrix();
+    }
+
+    // Restore controls state
+    if (viewState.controls && controls) {
+      if (viewState.controls.target) {
+        controls.target.set(
+          viewState.controls.target.x,
+          viewState.controls.target.y,
+          viewState.controls.target.z
+        );
+      }
+
+      controls.update();
+    }
+
+    // Restore model state if needed
+    if (viewState.model && rotationGroup) {
+      if (viewState.model.rotation) {
+        rotationGroup.rotation.set(
+          viewState.model.rotation.x,
+          viewState.model.rotation.y,
+          viewState.model.rotation.z
+        );
+      }
+
+      if (viewState.model.position) {
+        rotationGroup.position.set(
+          viewState.model.position.x,
+          viewState.model.position.y,
+          viewState.model.position.z
+        );
+      }
+    }
+
+    // Store handle state for applying after handles are created if they don't exist yet
+    if (viewState.handles) {
+      if (!movementHandle || !rotationHandle) {
+        // Save handle state for later application
+        pendingHandlesState = viewState.handles;
+      } else {
+        // Apply handle state immediately if handles exist
+        applyHandlesState(viewState.handles);
+      }
+    }
+
+    // Restore last loaded SVG URL if needed
+    if (viewState.lastLoadedSvgUrl && !window.lastLoadedSvgUrl) {
+      window.lastLoadedSvgUrl = viewState.lastLoadedSvgUrl;
+    }
+
+    console.log("View state restored");
+    return true;
+  } catch (error) {
+    console.error("Error restoring view state:", error);
+    return false;
+  }
+}
+
+// Helper function to apply handle state
+// function applyHandlesState(handlesState) {
+//   // Apply current rotation value
+//   if (handlesState.currentRotation !== undefined) {
+//     currentRotation = handlesState.currentRotation;
+
+//     // If rotationGroup exists, ensure rotation is applied
+//     if (rotationGroup && rotationGroup.rotation) {
+//       rotationGroup.rotation.z = currentRotation;
+//     }
+//   }
+
+//   // Apply movement handle state
+//   if (handlesState.movementHandle && movementHandle) {
+//     if (handlesState.movementHandle.position) {
+//       movementHandle.position.set(
+//         handlesState.movementHandle.position.x,
+//         handlesState.movementHandle.position.y,
+//         handlesState.movementHandle.position.z
+//       );
+//     }
+
+//     if (handlesState.movementHandle.visible !== undefined) {
+//       movementHandle.visible = handlesState.movementHandle.visible;
+//     }
+//   }
+
+//   // Apply rotation handle state
+//   if (handlesState.rotationHandle && rotationHandle) {
+//     if (handlesState.rotationHandle.position) {
+//       rotationHandle.position.set(
+//         handlesState.rotationHandle.position.x,
+//         handlesState.rotationHandle.position.y,
+//         handlesState.rotationHandle.position.z
+//       );
+//     }
+
+//     if (handlesState.rotationHandle.visible !== undefined) {
+//       rotationHandle.visible = handlesState.rotationHandle.visible;
+//     }
+//   }
+// }
+
+// function saveCurrentState() {
+//   const cameraState = {
+//     position: {
+//       x: camera.position.x,
+//       y: camera.position.y,
+//       z: camera.position.z,
+//     },
+//     rotation: {
+//       x: camera.rotation.x,
+//       y: camera.rotation.y,
+//       z: camera.rotation.z,
+//       order: camera.rotation.order,
+//     },
+//     zoom: camera.zoom,
+//     left: camera.left,
+//     right: camera.right,
+//     top: camera.top,
+//     bottom: camera.bottom,
+//     near: camera.near,
+//     far: camera.far,
+//   };
+
+//   const controlsState = {
+//     target: {
+//       x: controls.target.x,
+//       y: controls.target.y,
+//       z: controls.target.z,
+//     },
+//   };
+
+//   // Add model-specific transformations
+//   const modelState = {};
+
+//   if (rotationGroup) {
+//     modelState.rotation = {
+//       x: rotationGroup.rotation.x,
+//       y: rotationGroup.rotation.y,
+//       z: rotationGroup.rotation.z,
+//     };
+
+//     modelState.position = {
+//       x: rotationGroup.position.x,
+//       y: rotationGroup.position.y,
+//       z: rotationGroup.position.z,
+//     };
+//   }
+
+//   // Save handle positions and current rotation
+//   const handlesState = {
+//     currentRotation: currentRotation,
+//     movementHandle: movementHandle
+//       ? {
+//           position: {
+//             x: movementHandle.position.x,
+//             y: movementHandle.position.y,
+//             z: movementHandle.position.z,
+//           },
+//           visible: movementHandle.visible,
+//         }
+//       : null,
+
+//     rotationHandle: rotationHandle
+//       ? {
+//           position: {
+//             x: rotationHandle.position.x,
+//             y: rotationHandle.position.y,
+//             z: rotationHandle.position.z,
+//           },
+//           visible: rotationHandle.visible,
+//         }
+//       : null,
+//   };
+
+//   const viewState = {
+//     camera: cameraState,
+//     controls: controlsState,
+//     model: modelState,
+//     handles: handlesState,
+//     lastLoadedSvgUrl: window.lastLoadedSvgUrl,
+//   };
+
+//   // Save to localStorage
+//   localStorage.setItem("svgViewState", JSON.stringify(viewState));
+//   console.log("View state saved:", viewState);
+// }
+
+function saveCurrentState() {
+  const cameraState = {
+    position: {
+      x: camera.position.x,
+      y: camera.position.y,
+      z: camera.position.z,
+    },
+    rotation: {
+      x: camera.rotation.x,
+      y: camera.rotation.y,
+      z: camera.rotation.z,
+      order: camera.rotation.order,
+    },
+    zoom: camera.zoom,
+    left: camera.left,
+    right: camera.right,
+    top: camera.top,
+    bottom: camera.bottom,
+    near: camera.near,
+    far: camera.far,
+  };
+
+  const controlsState = {
+    target: {
+      x: controls.target.x,
+      y: controls.target.y,
+      z: controls.target.z,
+    },
+  };
+
+  // Add model-specific transformations
+  const modelState = {};
+
+  if (rotationGroup) {
+    modelState.rotation = {
+      x: rotationGroup.rotation.x,
+      y: rotationGroup.rotation.y,
+      z: rotationGroup.rotation.z,
+    };
+
+    modelState.position = {
+      x: rotationGroup.position.x,
+      y: rotationGroup.position.y,
+      z: rotationGroup.position.z,
+    };
+  }
+
+  // Save handle positions and current rotation
+  const handlesState = {
+    currentRotation: currentRotation,
+    movementHandle: movementHandle
+      ? {
+          position: {
+            x: movementHandle.position.x,
+            y: movementHandle.position.y,
+            z: movementHandle.position.z,
+          },
+          visible: movementHandle.visible,
+        }
+      : null,
+
+    rotationHandle: rotationHandle
+      ? {
+          position: {
+            x: rotationHandle.position.x,
+            y: rotationHandle.position.y,
+            z: rotationHandle.position.z,
+          },
+          visible: rotationHandle.visible,
+        }
+      : null,
+  };
+
+  // Save material and rendering properties
+  const renderingState = {
+    // Color
+    modelColor: threeColor ? threeColor.getHex() : 0x00ff00,
+
+    // Background
+    backgroundColor: scene.background ? scene.background.getHex() : null,
+
+    // Extrusion settings
+    extrusionDepth: window.customExtrusionDepth || 10,
+    bevelEnabled:
+      window.customBevelEnabled !== undefined
+        ? window.customBevelEnabled
+        : true,
+    curveSegments: window.customCurveSegments || 24,
+
+    // Material properties
+    metalness: window.customMetalness || 0.5,
+    roughness: window.customRoughness || 0.5,
+  };
+
+  // Save light states
+  const lightingState = {};
+
+  if (window.lights) {
+    Object.keys(window.lights).forEach((lightType) => {
+      const light = window.lights[lightType];
+      if (light) {
+        lightingState[lightType] = {
+          visible: light.visible,
+          intensity: light.intensity,
+          color: light.color ? light.color.getHex() : undefined,
+          position: light.position
+            ? {
+                x: light.position.x,
+                y: light.position.y,
+                z: light.position.z,
+              }
+            : undefined,
+        };
+
+        // Add type-specific properties
+        if (lightType === "spot") {
+          lightingState[lightType].angle = light.angle;
+          lightingState[lightType].distance = light.distance;
+          lightingState[lightType].decay = light.decay;
+          if (light.target && light.target.position) {
+            lightingState[lightType].target = {
+              x: light.target.position.x,
+              y: light.target.position.y,
+              z: light.target.position.z,
+            };
+          }
+        } else if (lightType === "point") {
+          lightingState[lightType].distance = light.distance;
+          lightingState[lightType].decay = light.decay;
+        } else if (lightType === "hemisphere") {
+          lightingState[lightType].groundColor = light.groundColor
+            ? light.groundColor.getHex()
+            : undefined;
+        } else if (lightType === "rectArea") {
+          lightingState[lightType].width = light.width;
+          lightingState[lightType].height = light.height;
+        }
+      }
+    });
+  }
+
+  // Create complete view state
+  const viewState = {
+    camera: cameraState,
+    controls: controlsState,
+    model: modelState,
+    handles: handlesState,
+    rendering: renderingState,
+    lighting: lightingState,
+    lastLoadedSvgUrl: window.lastLoadedSvgUrl,
+  };
+
+  // Save to localStorage
+  localStorage.setItem("svgViewState", JSON.stringify(viewState));
+  console.log("Complete state saved:", viewState);
+}
+
+function updateUIFromSettings(settings) {
+  // Extrusion depth
+  if (settings.extrusionDepth !== undefined) {
+    const depthInput = document.getElementById("extrusion-depth");
+    if (depthInput) {
+      depthInput.value = settings.extrusionDepth;
+      document.getElementById("depth-value").textContent =
+        settings.extrusionDepth;
+    }
+  }
+
+  // Bevel
+  if (settings.bevelEnabled !== undefined) {
+    const bevelInput = document.getElementById("edge-bevel-enabled");
+    if (bevelInput) bevelInput.checked = settings.bevelEnabled;
+  }
+
+  // Curve segments
+  if (settings.curveSegments !== undefined) {
+    const segmentsInput = document.getElementById("curve-segments");
+    if (segmentsInput) {
+      segmentsInput.value = settings.curveSegments;
+      document.getElementById("curve-segments-value").textContent =
+        settings.curveSegments;
+    }
+  }
+
+  // Material properties
+  if (settings.metalness !== undefined) {
+    const metalnessInput = document.getElementById("metalness-slider");
+    if (metalnessInput) {
+      metalnessInput.value = settings.metalness;
+      document.getElementById("metalness-value").textContent =
+        settings.metalness;
+    }
+  }
+
+  if (settings.roughness !== undefined) {
+    const roughnessInput = document.getElementById("roughness-slider");
+    if (roughnessInput) {
+      roughnessInput.value = settings.roughness;
+      document.getElementById("roughness-value").textContent =
+        settings.roughness;
+    }
+  }
+}
+
+// Helper function to apply handle state
+function applyHandlesState(handlesState) {
+  // Apply current rotation value
+  if (handlesState.currentRotation !== undefined) {
+    currentRotation = handlesState.currentRotation;
+
+    // If rotationGroup exists, ensure rotation is applied
+    if (rotationGroup && rotationGroup.rotation) {
+      rotationGroup.rotation.z = currentRotation;
+    }
+  }
+
+  // Apply movement handle state
+  if (handlesState.movementHandle && movementHandle) {
+    if (handlesState.movementHandle.position) {
+      movementHandle.position.set(
+        handlesState.movementHandle.position.x,
+        handlesState.movementHandle.position.y,
+        handlesState.movementHandle.position.z
+      );
+    }
+
+    if (handlesState.movementHandle.visible !== undefined) {
+      movementHandle.visible = handlesState.movementHandle.visible;
+    }
+  }
+
+  // Apply rotation handle state
+  if (handlesState.rotationHandle && rotationHandle) {
+    if (handlesState.rotationHandle.position) {
+      rotationHandle.position.set(
+        handlesState.rotationHandle.position.x,
+        handlesState.rotationHandle.position.y,
+        handlesState.rotationHandle.position.z
+      );
+    }
+
+    if (handlesState.rotationHandle.visible !== undefined) {
+      rotationHandle.visible = handlesState.rotationHandle.visible;
+    }
+  }
+}
+
+// Update the UI for light settings
+function updateLightingControlsUI(lightingState) {
+  // Update UI for all lights
+  Object.keys(lightingState).forEach((lightType) => {
+    const lightState = lightingState[lightType];
+
+    // Skip if state or light doesn't exist
+    if (!lightState || !window.lights[lightType]) return;
+
+    // Update visibility checkbox
+    const visibilityCheckbox = document.getElementById(
+      `${lightType}-light-enabled`
+    );
+    if (visibilityCheckbox && lightState.visible !== undefined) {
+      visibilityCheckbox.checked = lightState.visible;
+    }
+
+    // Update intensity slider
+    const intensitySlider = document.getElementById(`${lightType}-intensity`);
+    const intensityValue = document.getElementById(`${lightType}-value`);
+    if (
+      intensitySlider &&
+      intensityValue &&
+      lightState.intensity !== undefined
+    ) {
+      intensitySlider.value = lightState.intensity;
+      intensityValue.textContent = lightState.intensity.toFixed(1);
+    }
+
+    // Update position sliders (common to most lights)
+    if (lightState.position) {
+      ["x", "y", "z"].forEach((axis) => {
+        const posSlider = document.getElementById(`${lightType}-${axis}-pos`);
+        const posValue = document.getElementById(`${lightType}-${axis}-value`);
+        if (posSlider && posValue && lightState.position[axis] !== undefined) {
+          posSlider.value = lightState.position[axis];
+          posValue.textContent =
+            typeof lightState.position[axis] === "number"
+              ? lightState.position[axis].toFixed(1)
+              : lightState.position[axis];
+        }
+      });
+    }
+
+    // Light-specific properties
+    if (lightType === "spot") {
+      // Target position
+      if (lightState.target) {
+        ["x", "y", "z"].forEach((axis) => {
+          const targetSlider = document.getElementById(
+            `${lightType}-target-${axis}-pos`
+          );
+          const targetValue = document.getElementById(
+            `${lightType}-target-${axis}-value`
+          );
+          if (
+            targetSlider &&
+            targetValue &&
+            lightState.target[axis] !== undefined
+          ) {
+            targetSlider.value = lightState.target[axis];
+            targetValue.textContent = lightState.target[axis];
+          }
+        });
+      }
+
+      // Angle
+      const angleSlider = document.getElementById(`${lightType}-angle`);
+      const angleValue = document.getElementById(`${lightType}-angle-value`);
+      if (angleSlider && angleValue && lightState.angle !== undefined) {
+        // Convert from radians to degrees for UI
+        const angleDegrees = (lightState.angle * 180) / Math.PI;
+        angleSlider.value = angleDegrees;
+        angleValue.textContent = `${angleDegrees}°`;
+      }
+
+      // Distance
+      const distanceSlider = document.getElementById(`${lightType}-distance`);
+      const distanceValue = document.getElementById(
+        `${lightType}-distance-value`
+      );
+      if (
+        distanceSlider &&
+        distanceValue &&
+        lightState.distance !== undefined
+      ) {
+        distanceSlider.value = lightState.distance;
+        distanceValue.textContent = lightState.distance;
+      }
+
+      // Cast shadow
+      const castShadowCheckbox = document.getElementById(
+        `${lightType}-cast-shadow`
+      );
+      if (castShadowCheckbox && window.lights[lightType]) {
+        castShadowCheckbox.checked = window.lights[lightType].castShadow;
+      }
+    } else if (lightType === "point") {
+      // Distance
+      const distanceSlider = document.getElementById(`${lightType}-distance`);
+      const distanceValue = document.getElementById(
+        `${lightType}-distance-value`
+      );
+      if (
+        distanceSlider &&
+        distanceValue &&
+        lightState.distance !== undefined
+      ) {
+        distanceSlider.value = lightState.distance;
+        distanceValue.textContent = lightState.distance;
+      }
+
+      // Decay
+      const decaySlider = document.getElementById(`${lightType}-decay`);
+      const decayValue = document.getElementById(`${lightType}-decay-value`);
+      if (decaySlider && decayValue && lightState.decay !== undefined) {
+        decaySlider.value = lightState.decay;
+        decayValue.textContent = lightState.decay;
+      }
+
+      // Cast shadow
+      const castShadowCheckbox = document.getElementById(
+        `${lightType}-cast-shadow`
+      );
+      if (castShadowCheckbox && window.lights[lightType]) {
+        castShadowCheckbox.checked = window.lights[lightType].castShadow;
+      }
+    } else if (lightType === "rectArea") {
+      // Width
+      const widthSlider = document.getElementById(`${lightType}-width`);
+      const widthValue = document.getElementById(`${lightType}-width-value`);
+      if (widthSlider && widthValue && lightState.width !== undefined) {
+        widthSlider.value = lightState.width;
+        widthValue.textContent = lightState.width;
+      }
+
+      // Height
+      const heightSlider = document.getElementById(`${lightType}-height`);
+      const heightValue = document.getElementById(`${lightType}-height-value`);
+      if (heightSlider && heightValue && lightState.height !== undefined) {
+        heightSlider.value = lightState.height;
+        heightValue.textContent = lightState.height;
+      }
+    }
+  });
+
+  // Update global shadow checkbox
+  const globalShadowCheckbox = document.getElementById("global-shadow");
+  if (globalShadowCheckbox && window.renderer) {
+    globalShadowCheckbox.checked = window.renderer.shadowMap.enabled;
+  }
+
+  // Update light helpers checkbox
+  const helpersCheckbox = document.getElementById("show-light-helpers");
+  if (helpersCheckbox) {
+    // Check if any helpers are visible
+    const helpersVisible = Object.values(window.lightHelpers).some(
+      (helper) => helper && helper.visible
+    );
+    helpersCheckbox.checked = helpersVisible;
+  }
+}
+
+// Update the init function to remove the timeout
 function init() {
-  window.customMetalness = 0.5;
-  window.customRoughness = 0.5;
-  // Load the SVG
-  loadSVG("../assets/vector.svg");
+  // Check if we have a saved state
+  const savedState = localStorage.getItem("svgViewState");
+
+  // Load SVG - either the one from saved state or default
+  if (savedState) {
+    try {
+      const viewState = JSON.parse(savedState);
+      if (viewState.lastLoadedSvgUrl) {
+        loadSVG(viewState.lastLoadedSvgUrl);
+      } else {
+        loadSVG("../assets/vector.svg");
+      }
+    } catch (e) {
+      console.error("Error parsing saved state:", e);
+      loadSVG("../assets/vector.svg");
+    }
+  } else {
+    loadSVG("../assets/vector.svg");
+  }
+
   // Start animation loop
   animate();
 }
 
-// Initialize the application
 init();

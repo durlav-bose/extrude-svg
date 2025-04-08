@@ -550,9 +550,9 @@
                     min="0"
                     max="2"
                     step="0.1"
-                    value="0.5"
+                    value="0.8"
                   />
-                  <span id="metalness-value" class="slider-value">0.5</span>
+                  <span id="metalness-value" class="slider-value">0.8</span>
                 </div>
               </div>
               <div>
@@ -564,9 +564,9 @@
                     min="0"
                     max="0.5"
                     step="0.01"
-                    value="0.3"
+                    value="0.2"
                   />
-                  <span id="roughness-value" class="slider-value">0.3</span>
+                  <span id="roughness-value" class="slider-value">0.2</span>
                 </div>
               </div>
               <button id="apply-material-props" style="margin-top: 10px">
@@ -806,7 +806,6 @@
                         <input
                           type="checkbox"
                           id="directional-cast-shadow"
-                          checked
                         />
                         <span>Cast Shadows</span>
                       </label>
@@ -859,7 +858,6 @@
                         <input
                           type="checkbox"
                           id="point-light-enabled"
-                          checked
                         />
                         <span>Enable</span>
                       </label>
@@ -878,7 +876,9 @@
                         <span id="point-value" class="slider-value">50</span>
                       </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 10px">
+                    <div
+                      style="display: flex; flex-direction: column; gap: 10px"
+                    >
                       <div style="flex: 1; min-width: 120px">
                         <label style="display: block; margin-bottom: 2px"
                           >X Position:</label
@@ -968,7 +968,7 @@
                     </div>
                     <div style="margin-top: 8px">
                       <label class="checkbox-label">
-                        <input type="checkbox" id="point-cast-shadow" checked />
+                        <input type="checkbox" id="point-cast-shadow" />
                         <span>Cast Shadows</span>
                       </label>
                     </div>
@@ -1022,7 +1022,6 @@
                         <input
                           type="checkbox"
                           id="spot-light-enabled"
-                          checked
                         />
                         <span>Enable</span>
                       </label>
@@ -1041,7 +1040,9 @@
                         <span id="spot-value" class="slider-value">60</span>
                       </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 10px">
+                    <div
+                      style="display: flex; flex-direction: column; gap: 10px"
+                    >
                       <div style="flex: 1; min-width: 120px">
                         <label style="display: block; margin-bottom: 2px"
                           >X Position:</label
@@ -1106,7 +1107,9 @@
                         "
                         >Target:</label
                       >
-                      <div style="display: flex; flex-direction: column; gap: 10px">
+                      <div
+                        style="display: flex; flex-direction: column; gap: 10px"
+                      >
                         <div style="flex: 1; min-width: 120px">
                           <label style="display: block; margin-bottom: 2px"
                             >X Position:</label
@@ -1201,7 +1204,7 @@
                     </div>
                     <div style="margin-top: 8px">
                       <label class="checkbox-label">
-                        <input type="checkbox" id="spot-cast-shadow" checked />
+                        <input type="checkbox" id="spot-cast-shadow" />
                         <span>Cast Shadows</span>
                       </label>
                     </div>
@@ -1255,7 +1258,6 @@
                         <input
                           type="checkbox"
                           id="hemisphere-light-enabled"
-                          checked
                         />
                         <span>Enable</span>
                       </label>
@@ -1353,7 +1355,6 @@
                         <input
                           type="checkbox"
                           id="rectArea-light-enabled"
-                          checked
                         />
                         <span>Enable</span>
                       </label>
@@ -1374,7 +1375,9 @@
                         >
                       </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 10px">
+                    <div
+                      style="display: flex; flex-direction: column; gap: 10px"
+                    >
                       <div style="flex: 1; min-width: 120px">
                         <label style="display: block; margin-bottom: 2px"
                           >X Position:</label
@@ -1547,11 +1550,11 @@
           </button>
           <div class="collapsible-content">
             <div class="control-section-inner">
-              <div class="button-group">
+              <!-- <div class="button-group">
                 <button id="export-gltf">GLTF</button>
                 <button id="export-obj">OBJ</button>
                 <button id="export-stl">STL</button>
-              </div>
+              </div> -->
 
               <div style="margin-top: 15px">
                 <label for="output-width">Canvas Width:</label>
@@ -1759,6 +1762,27 @@
     </script>
 
     <!-- Main script -->
-    <script type="module" src="src/saveAndReload.js"></script>
+    <!-- <script type="module" src="src/main.js"></script> -->
+
+    <script src="src/js/three.min.js"></script>
+
+    <!-- Three.js helper modules -->
+    <script src="src/js/modules/helpers.js"></script>
+
+    <!-- Main application script -->
+    <script>
+      // Initialize RectAreaLightUniformsLib if available
+      if (THREE.RectAreaLightUniformsLib) {
+        THREE.RectAreaLightUniformsLib.init();
+      }
+
+      // Load main.js after the DOM is fully loaded
+      document.addEventListener("DOMContentLoaded", function () {
+        // Load your main script
+        const script = document.createElement("script");
+        script.src = "src/main.js";
+        document.body.appendChild(script);
+      });
+    </script>
   </body>
 </html>

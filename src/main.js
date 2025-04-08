@@ -1,20 +1,11 @@
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader";
-import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
-import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter";
-import { STLExporter } from "three/examples/jsm/exporters/STLExporter";
-import { DragControls } from "three/examples/jsm/controls/DragControls";
-import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
-import { RectAreaLightHelper } from "three/examples/jsm/helpers/RectAreaLightHelper.js";
-
 // Add a global variable to store handle state if handles aren't created yet
 let pendingHandlesState = null;
 window.preserveCurrentPosition = false;
 
 let outputWidth = 1000;
 let outputHeight = 1000;
-let threeColor = new THREE.Color(0x00ff00);
+let threeColor = null;
+let backgroundColor = null;
 // Scene setup
 const scene = new THREE.Scene();
 // scene.background = new THREE.Color(0x111111);
@@ -54,8 +45,8 @@ renderer.outputEncoding = THREE.sRGBEncoding;
 
 window.renderer = renderer;
 
-if (typeof RectAreaLightUniformsLib !== "undefined") {
-  RectAreaLightUniformsLib.init();
+if (typeof THREE.RectAreaLightUniformsLib !== "undefined") {
+  THREE.RectAreaLightUniformsLib.init();
 }
 
 // 1. Ambient Light - general illumination
@@ -65,7 +56,7 @@ scene.add(ambientLight);
 // 2. Directional Light (sun-like, parallel rays)
 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(1, 1, 1);
-directionalLight.castShadow = true;
+directionalLight.castShadow = false;
 directionalLight.shadow.mapSize.width = 1024;
 directionalLight.shadow.mapSize.height = 1024;
 directionalLight.shadow.camera.near = 0.5;
@@ -87,7 +78,8 @@ scene.add(directionalHelper);
 // 3. Point Light (omni-directional, like a light bulb)
 const pointLight = new THREE.PointLight(0xffffff, 50, 200, 1);
 pointLight.position.set(0, 0, 70);
-pointLight.castShadow = true;
+pointLight.visible = false;
+pointLight.castShadow = false;
 pointLight.shadow.mapSize.width = 1024;
 pointLight.shadow.mapSize.height = 1024;
 scene.add(pointLight);
@@ -101,7 +93,8 @@ scene.add(pointHelper);
 const spotLight = new THREE.SpotLight(0xffffff, 60, 300, Math.PI / 6, 0.5, 1);
 spotLight.position.set(100, 100, 100);
 spotLight.target.position.set(0, 0, 0);
-spotLight.castShadow = true;
+spotLight.visible = false;
+spotLight.castShadow = false;
 spotLight.shadow.mapSize.width = 1024;
 spotLight.shadow.mapSize.height = 1024;
 scene.add(spotLight);
@@ -115,6 +108,7 @@ scene.add(spotHelper);
 // 5. Hemisphere Light (gradient light from sky to ground)
 const hemisphereLight = new THREE.HemisphereLight(0x0088ff, 0xff8800, 0.3);
 hemisphereLight.position.set(0, 1, 0);
+hemisphereLight.visible = false;
 scene.add(hemisphereLight);
 
 // Create helper for hemisphere light
@@ -130,12 +124,13 @@ try {
   rectAreaLight = new THREE.RectAreaLight(0xffffff, 3, 100, 100);
   rectAreaLight.position.set(-100, 0, 100);
   rectAreaLight.lookAt(0, 0, 0);
+  rectAreaLight.visible = false;
   scene.add(rectAreaLight);
 
   // Try to create RectAreaLightHelper if available
   try {
-    if (typeof RectAreaLightHelper !== "undefined") {
-      rectAreaHelper = new RectAreaLightHelper(rectAreaLight);
+    if (typeof THREE.RectAreaLightHelper !== "undefined") {
+      rectAreaHelper = new THREE.RectAreaLightHelper(rectAreaLight);
       rectAreaHelper.visible = false;
       scene.add(rectAreaHelper);
     } else if (typeof THREE.RectAreaLightHelper !== "undefined") {
@@ -212,7 +207,7 @@ function updateLightHelpers() {
 }
 
 // Controls for camera
-const controls = new OrbitControls(camera, renderer.domElement);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
@@ -223,7 +218,7 @@ let currentRotation = 0;
 let movementHandle, rotationHandle;
 
 // SVG Loader
-const loader = new SVGLoader();
+const loader = new THREE.SVGLoader();
 
 // Helper Functions
 function hasValidPoints(points) {
@@ -268,60 +263,6 @@ function createThickLineFromPoints(points, thickness = 1.5) {
   return lineShapes;
 }
 
-// Export helper functions
-function saveArrayBuffer(buffer, filename) {
-  const blob = new Blob([buffer], { type: "application/octet-stream" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-}
-
-function saveString(text, filename) {
-  const blob = new Blob([text], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-}
-
-// Export functions
-function exportToGLTF(input) {
-  const gltfExporter = new GLTFExporter();
-  const options = {
-    trs: false,
-    onlyVisible: true,
-    truncateDrawRange: true,
-    binary: false,
-    maxTextureSize: 4096,
-  };
-
-  gltfExporter.parse(
-    input,
-    function (result) {
-      if (result instanceof ArrayBuffer) {
-        saveArrayBuffer(result, "extruded-svg.glb");
-      } else {
-        const output = JSON.stringify(result, null, 2);
-        saveString(output, "extruded-svg.gltf");
-      }
-    },
-    options
-  );
-}
-
-function exportToOBJ(input) {
-  const objExporter = new OBJExporter();
-  const result = objExporter.parse(input);
-  saveString(result, "extruded-svg.obj");
-}
-
-function exportToSTL(input) {
-  const stlExporter = new STLExporter();
-  const result = stlExporter.parse(input, { binary: true });
-  saveArrayBuffer(result, "extruded-svg.stl");
-}
-
 // Handle functions
 function createMovementHandle() {
   // Create a simple visual marker for the handle
@@ -360,7 +301,6 @@ function createMovementHandle() {
   handle.position.set(0, 0, 50); // Put in front of the model
   handle.renderOrder = 1000; // Ensure it renders on top
   handle.scale.set(0.5, 0.5, 0.5);
-  scene.add(handle);
 
   return handle;
 }
@@ -407,6 +347,18 @@ function createRotationHandle() {
 }
 
 function setupHandles() {
+  // Delete existing handles if they exist
+  if (movementHandle) {
+    scene.remove(movementHandle);
+    movementHandle = null;
+  }
+
+  if (rotationHandle) {
+    if (rotationHandle.parent) {
+      rotationHandle.parent.remove(rotationHandle);
+    }
+    rotationHandle = null;
+  }
   // Calculate bounding box of SVG
   const bbox = new THREE.Box3().setFromObject(svgGroup);
   const svgSize = bbox.getSize(new THREE.Vector3());
@@ -447,7 +399,7 @@ function setupHandles() {
   }
 
   // Setup drag controls for movement handle
-  const movementControls = new DragControls(
+  const movementControls = new THREE.DragControls(
     [movementHandle],
     camera,
     renderer.domElement
@@ -475,7 +427,7 @@ function setupHandles() {
   });
 
   // Setup drag controls for rotation handle
-  const rotationControls = new DragControls(
+  const rotationControls = new THREE.DragControls(
     [rotationHandle],
     camera,
     renderer.domElement
@@ -535,119 +487,6 @@ function setupHandles() {
   }
 }
 
-// function setupHandles() {
-//   // Calculate bounding box of SVG
-//   const bbox = new THREE.Box3().setFromObject(svgGroup);
-//   const svgSize = bbox.getSize(new THREE.Vector3());
-//   const svgWidth = svgSize.x;
-//   const svgHeight = svgSize.y;
-
-//   // Get center position in world coordinates
-//   const svgCenter = bbox.getCenter(new THREE.Vector3());
-//   svgGroup.position.sub(svgCenter);
-
-//   // Position the rotation group at the center of the viewport
-//   rotationGroup.position.set(0, 0, 0);
-
-//   // Create and position the handles
-//   movementHandle = createMovementHandle();
-//   scene.add(movementHandle);
-//   movementHandle.position.set(0, 0, 5); // Center of viewport
-
-//   // Create rotation handle
-//   rotationHandle = createRotationHandle();
-//   rotationGroup.add(rotationHandle);
-
-//   // Position rotation handle at the edge
-//   const handleOffset = {
-//     x: svgWidth / 2 + 20,
-//     y: svgHeight / 2 + 20,
-//   };
-//   rotationHandle.position.set(handleOffset.x, handleOffset.y, 5);
-
-//   // Setup drag controls for movement handle
-//   const movementControls = new DragControls(
-//     [movementHandle],
-//     camera,
-//     renderer.domElement
-//   );
-
-//   let initialHandlePosition = new THREE.Vector3();
-//   let initialGroupPosition = new THREE.Vector3();
-
-//   movementControls.addEventListener("dragstart", (event) => {
-//     controls.enabled = false;
-//     initialHandlePosition.copy(event.object.position);
-//     initialGroupPosition.copy(rotationGroup.position);
-//   });
-
-//   movementControls.addEventListener("drag", (event) => {
-//     const delta = new THREE.Vector3()
-//       .copy(event.object.position)
-//       .sub(initialHandlePosition);
-
-//     rotationGroup.position.copy(initialGroupPosition).add(delta);
-//   });
-
-//   movementControls.addEventListener("dragend", () => {
-//     controls.enabled = true;
-//   });
-
-//   // Setup drag controls for rotation handle
-//   const rotationControls = new DragControls(
-//     [rotationHandle],
-//     camera,
-//     renderer.domElement
-//   );
-
-//   let initialAngle = 0;
-//   let initialRotationHandlePos = new THREE.Vector3();
-//   let rotationSensitivity = 0.3; // Adjust this value to control rotation speed
-
-//   rotationControls.addEventListener("dragstart", (event) => {
-//     controls.enabled = false;
-//     initialAngle = currentRotation;
-
-//     // Store the initial position of the rotation handle
-//     initialRotationHandlePos.copy(event.object.position);
-//   });
-
-//   rotationControls.addEventListener("drag", (event) => {
-//     // Get the rotation group's center in world coordinates
-//     const centerWorld = new THREE.Vector3();
-//     rotationGroup.getWorldPosition(centerWorld);
-
-//     // Get initial vector from center to initial handle position (local space)
-//     const initialVector = new THREE.Vector2(
-//       initialRotationHandlePos.x,
-//       initialRotationHandlePos.y
-//     );
-
-//     // Get current vector from center to current handle position (local space)
-//     const currentVector = new THREE.Vector2(
-//       event.object.position.x,
-//       event.object.position.y
-//     );
-
-//     // Calculate the angle between these vectors
-//     const dot = initialVector.dot(currentVector);
-//     const det =
-//       initialVector.x * currentVector.y - initialVector.y * currentVector.x;
-//     const angleChange = Math.atan2(det, dot);
-
-//     // Apply sensitivity adjustment
-//     const adjustedAngle = angleChange * rotationSensitivity;
-
-//     // Apply rotation
-//     rotationGroup.rotation.z = initialAngle + adjustedAngle;
-//     currentRotation = initialAngle + adjustedAngle;
-//   });
-
-//   rotationControls.addEventListener("dragend", () => {
-//     controls.enabled = true;
-//   });
-// }
-
 function updateHandlesVisibility(visible) {
   if (movementHandle) movementHandle.visible = visible;
   if (rotationHandle) rotationHandle.visible = visible;
@@ -670,24 +509,121 @@ function takeScreenshot() {
   const handlesVisible = movementHandle ? movementHandle.visible : false;
   updateHandlesVisibility(false);
 
-  console.log("outputWidth :>> ", outputWidth);
-  console.log("outputHeight :>> ", outputHeight);
-
   // Get the original canvas dimensions to maintain aspect ratio
   const originalWidth = outputWidth || renderer.domElement.width;
   const originalHeight = outputHeight || renderer.domElement.height;
 
-  // Create a new scene for capturing
+  // Create a new scene for capturing with transparent background
   const captureScene = new THREE.Scene();
-  // captureScene.background = scene.background.clone();
+  captureScene.background = null;
 
-  // Copy all lights from the original scene
-  scene.traverse((obj) => {
-    if (obj.isLight) {
-      const lightClone = obj.clone();
-      captureScene.add(lightClone);
+  // Copy ambient light with increased intensity for better illumination
+  const ambientLightClone = new THREE.AmbientLight(
+    window.lights.ambient.color.getHex(),
+    window.lights.ambient.intensity
+  );
+  captureScene.add(ambientLightClone);
+
+  // Copy directional light with precise settings
+  if (window.lights.directional.visible) {
+    const directionalLightClone = new THREE.DirectionalLight(
+      window.lights.directional.color.getHex(),
+      window.lights.directional.intensity
+    );
+
+    // Copy position and settings
+    directionalLightClone.position.copy(window.lights.directional.position);
+    directionalLightClone.castShadow = window.lights.directional.castShadow;
+
+    // Copy shadow settings
+    if (window.lights.directional.castShadow) {
+      directionalLightClone.shadow.mapSize.width =
+        window.lights.directional.shadow.mapSize.width;
+      directionalLightClone.shadow.mapSize.height =
+        window.lights.directional.shadow.mapSize.height;
+      directionalLightClone.shadow.camera.near =
+        window.lights.directional.shadow.camera.near;
+      directionalLightClone.shadow.camera.far =
+        window.lights.directional.shadow.camera.far;
+      directionalLightClone.shadow.camera.left =
+        window.lights.directional.shadow.camera.left;
+      directionalLightClone.shadow.camera.right =
+        window.lights.directional.shadow.camera.right;
+      directionalLightClone.shadow.camera.top =
+        window.lights.directional.shadow.camera.top;
+      directionalLightClone.shadow.camera.bottom =
+        window.lights.directional.shadow.camera.bottom;
     }
-  });
+
+    captureScene.add(directionalLightClone);
+  }
+
+  // Copy point light if visible
+  if (window.lights.point.visible) {
+    const pointLightClone = new THREE.PointLight(
+      window.lights.point.color.getHex(),
+      window.lights.point.intensity,
+      window.lights.point.distance,
+      window.lights.point.decay
+    );
+
+    pointLightClone.position.copy(window.lights.point.position);
+    pointLightClone.castShadow = window.lights.point.castShadow;
+
+    captureScene.add(pointLightClone);
+  }
+
+  // Copy spot light if visible
+  if (window.lights.spot.visible) {
+    const spotLightClone = new THREE.SpotLight(
+      window.lights.spot.color.getHex(),
+      window.lights.spot.intensity,
+      window.lights.spot.distance,
+      window.lights.spot.angle,
+      window.lights.spot.penumbra,
+      window.lights.spot.decay
+    );
+
+    spotLightClone.position.copy(window.lights.spot.position);
+
+    // Create and position target
+    const targetClone = new THREE.Object3D();
+    targetClone.position.copy(window.lights.spot.target.position);
+    captureScene.add(targetClone);
+    spotLightClone.target = targetClone;
+
+    spotLightClone.castShadow = window.lights.spot.castShadow;
+
+    captureScene.add(spotLightClone);
+  }
+
+  // Copy hemisphere light if visible
+  if (window.lights.hemisphere.visible) {
+    const hemisphereLightClone = new THREE.HemisphereLight(
+      window.lights.hemisphere.color.getHex(),
+      window.lights.hemisphere.groundColor.getHex(),
+      window.lights.hemisphere.intensity
+    );
+
+    hemisphereLightClone.position.copy(window.lights.hemisphere.position);
+
+    captureScene.add(hemisphereLightClone);
+  }
+
+  // Copy rect area light if visible
+  if (window.lights.rectArea && window.lights.rectArea.visible) {
+    const rectAreaLightClone = new THREE.RectAreaLight(
+      window.lights.rectArea.color.getHex(),
+      window.lights.rectArea.intensity,
+      window.lights.rectArea.width,
+      window.lights.rectArea.height
+    );
+
+    rectAreaLightClone.position.copy(window.lights.rectArea.position);
+    rectAreaLightClone.lookAt(0, 0, 0);
+
+    captureScene.add(rectAreaLightClone);
+  }
 
   // Create a new rotation group with the same transformation
   const captureRotationGroup = new THREE.Group();
@@ -703,7 +639,7 @@ function takeScreenshot() {
   captureSvgGroup.scale.copy(svgGroup.scale);
   captureRotationGroup.add(captureSvgGroup);
 
-  // Use the same traversal pattern as your color change code
+  // Clone all meshes with proper materials
   svgGroup.traverse((child) => {
     if (child.isMesh) {
       // Clone geometry
@@ -715,11 +651,20 @@ function takeScreenshot() {
       if (Array.isArray(child.material)) {
         // Handle multi-material
         newMaterial = child.material.map((mat) => {
-          // Create a completely new material of the same type
           let clonedMat;
 
-          if (mat.type === "MeshPhongMaterial") {
-            // For PhongMaterial, create a new one with explicit color
+          if (mat.type === "MeshStandardMaterial") {
+            clonedMat = new THREE.MeshStandardMaterial({
+              color: mat.color ? mat.color.clone() : 0x00ff00,
+              metalness: mat.metalness !== undefined ? mat.metalness : 0.8,
+              roughness: mat.roughness !== undefined ? mat.roughness : 0.2,
+              side: mat.side || THREE.DoubleSide,
+              flatShading: mat.flatShading || false,
+              transparent: mat.transparent || false,
+              opacity: mat.opacity !== undefined ? mat.opacity : 1,
+              envMapIntensity: 1.0,
+            });
+          } else if (mat.type === "MeshPhongMaterial") {
             clonedMat = new THREE.MeshPhongMaterial({
               color: mat.color ? mat.color.clone() : 0x00ff00,
               emissive: mat.emissive ? mat.emissive.clone() : 0x000000,
@@ -740,45 +685,59 @@ function takeScreenshot() {
           clonedMat.needsUpdate = true;
           return clonedMat;
         });
+      } else if (child.material.type === "MeshStandardMaterial") {
+        // Handle MeshStandardMaterial
+        newMaterial = new THREE.MeshStandardMaterial({
+          color: child.material.color ? child.material.color.clone() : 0x00ff00,
+          metalness:
+            child.material.metalness !== undefined
+              ? child.material.metalness
+              : 0.8,
+          roughness:
+            child.material.roughness !== undefined
+              ? child.material.roughness
+              : 0.2,
+          side: child.material.side || THREE.DoubleSide,
+          flatShading: child.material.flatShading || false,
+          transparent: child.material.transparent || false,
+          opacity:
+            child.material.opacity !== undefined ? child.material.opacity : 1,
+          envMapIntensity: 1.0,
+        });
+      } else if (child.material.type === "MeshPhongMaterial") {
+        // Handle MeshPhongMaterial
+        newMaterial = new THREE.MeshPhongMaterial({
+          color: child.material.color ? child.material.color.clone() : 0x00ff00,
+          emissive: child.material.emissive
+            ? child.material.emissive.clone()
+            : 0x000000,
+          specular: child.material.specular
+            ? child.material.specular.clone()
+            : 0x111111,
+          shininess: child.material.shininess || 30,
+          flatShading: child.material.flatShading || false,
+          side: child.material.side || THREE.DoubleSide,
+          transparent: child.material.transparent || false,
+          opacity:
+            child.material.opacity !== undefined ? child.material.opacity : 1,
+        });
       } else {
-        // Single material
-        if (child.material.type === "MeshPhongMaterial") {
-          // For PhongMaterial, create a new one with explicit color
-          newMaterial = new THREE.MeshPhongMaterial({
-            color: child.material.color
-              ? child.material.color.clone()
-              : 0x00ff00,
-            emissive: child.material.emissive
-              ? child.material.emissive.clone()
-              : 0x000000,
-            specular: child.material.specular
-              ? child.material.specular.clone()
-              : 0x111111,
-            shininess: child.material.shininess || 30,
-            flatShading: child.material.flatShading || false,
-            side: child.material.side || THREE.DoubleSide,
-            transparent: child.material.transparent || false,
-            opacity:
-              child.material.opacity !== undefined ? child.material.opacity : 1,
-          });
-        } else {
-          // For other material types, basic clone
-          newMaterial = child.material.clone();
-          if (child.material.color)
-            newMaterial.color.copy(child.material.color);
-        }
-
-        // Force material update
-        newMaterial.needsUpdate = true;
+        // For other material types, basic clone
+        newMaterial = child.material.clone();
+        if (child.material.color) newMaterial.color.copy(child.material.color);
       }
 
       // Create new mesh
       const newMesh = new THREE.Mesh(newGeometry, newMaterial);
 
-      // Copy matrix transformation for exact positioning
-      newMesh.matrix.copy(child.matrix);
-      newMesh.matrixWorld.copy(child.matrixWorld);
-      newMesh.matrixAutoUpdate = false;
+      // Copy transform
+      newMesh.position.copy(child.position);
+      newMesh.rotation.copy(child.rotation);
+      newMesh.scale.copy(child.scale);
+
+      // Copy shadow properties
+      newMesh.castShadow = child.castShadow;
+      newMesh.receiveShadow = child.receiveShadow;
 
       // Add to the capture SVG group
       captureSvgGroup.add(newMesh);
@@ -801,15 +760,21 @@ function takeScreenshot() {
   captureRenderer.setSize(originalWidth, originalHeight);
   captureRenderer.setPixelRatio(window.devicePixelRatio);
 
+  // Copy renderer settings
   captureRenderer.shadowMap.enabled = renderer.shadowMap.enabled;
   captureRenderer.shadowMap.type = renderer.shadowMap.type;
-  captureRenderer.physicallyCorrectLights = true;
+  captureRenderer.physicallyCorrectLights = renderer.physicallyCorrectLights;
+  captureRenderer.outputEncoding = renderer.outputEncoding;
+  captureRenderer.toneMapping = renderer.toneMapping;
+  captureRenderer.toneMappingExposure = renderer.toneMappingExposure;
 
-  // Render the scene with the same background color
-  captureRenderer.setClearColor(scene.background, 0);
+  // Set transparent background
+  captureRenderer.setClearColor(0x000000, 0);
+
+  // Render the scene
   captureRenderer.render(captureScene, captureCamera);
 
-  // Log the colors in the cloned scene for debugging
+  // Log the cloned materials for debugging
   console.log("CLONED MATERIALS:");
   captureSvgGroup.traverse((child) => {
     if (child.isMesh && child.material) {
@@ -818,6 +783,10 @@ function takeScreenshot() {
       if (mat.color) {
         console.log("  - Color: #" + mat.color.getHexString());
         console.log("  - Type:", mat.type);
+        if (mat.type === "MeshStandardMaterial") {
+          console.log("  - Metalness:", mat.metalness);
+          console.log("  - Roughness:", mat.roughness);
+        }
       }
     }
   });
@@ -838,769 +807,6 @@ function takeScreenshot() {
 }
 
 let isLoadingSVG = false;
-// function loadSVG(url) {
-//   // Get the saved state before loading if it exists
-//   const savedState = localStorage.getItem("svgViewState");
-//   let viewState = null;
-
-//   if (savedState) {
-//     try {
-//       viewState = JSON.parse(savedState);
-//       console.log(
-//         "Loaded saved state for restoring during SVG load:",
-//         viewState
-//       );
-
-//       // Apply rendering settings right away
-//       if (viewState.rendering) {
-//         // Model color will be applied after SVG loads
-
-//         // Background color
-//         if (viewState.rendering.backgroundColor !== null) {
-//           scene.background = new THREE.Color(
-//             viewState.rendering.backgroundColor
-//           );
-//         }
-
-//         // Save extrusion settings to window
-//         window.customExtrusionDepth =
-//           window.customExtrusionDepth ?? viewState.rendering.extrusionDepth;
-//         window.customBevelEnabled =
-//           window.customBevelEnabled ?? viewState.rendering.bevelEnabled;
-//         window.customCurveSegments =
-//           window.customCurveSegments ?? viewState.rendering.curveSegments;
-//         window.customMetalness =
-//           window.customMetalness ?? viewState.rendering.metalness;
-//         window.customRoughness =
-//           window.customRoughness ?? viewState.rendering.roughness;
-//       }
-
-//       // Apply lighting settings
-//       if (viewState.lighting && window.lights) {
-//         Object.keys(viewState.lighting).forEach((lightType) => {
-//           const savedLight = viewState.lighting[lightType];
-//           const light = window.lights[lightType];
-
-//           if (light && savedLight) {
-//             if (savedLight.visible !== undefined)
-//               light.visible = savedLight.visible;
-//             if (savedLight.intensity !== undefined)
-//               light.intensity = savedLight.intensity;
-//             if (savedLight.color !== undefined)
-//               light.color.setHex(savedLight.color);
-
-//             if (savedLight.position && light.position) {
-//               light.position.set(
-//                 savedLight.position.x,
-//                 savedLight.position.y,
-//                 savedLight.position.z
-//               );
-//             }
-
-//             // Apply type-specific properties
-//             if (lightType === "spot") {
-//               if (savedLight.angle !== undefined)
-//                 light.angle = savedLight.angle;
-//               if (savedLight.distance !== undefined)
-//                 light.distance = savedLight.distance;
-//               if (savedLight.decay !== undefined)
-//                 light.decay = savedLight.decay;
-//               if (savedLight.target && light.target) {
-//                 light.target.position.set(
-//                   savedLight.target.x,
-//                   savedLight.target.y,
-//                   savedLight.target.z
-//                 );
-//               }
-//             } else if (lightType === "point") {
-//               if (savedLight.distance !== undefined)
-//                 light.distance = savedLight.distance;
-//               if (savedLight.decay !== undefined)
-//                 light.decay = savedLight.decay;
-//             } else if (lightType === "hemisphere" && savedLight.groundColor) {
-//               light.groundColor.setHex(savedLight.groundColor);
-//             } else if (lightType === "rectArea") {
-//               if (savedLight.width !== undefined)
-//                 light.width = savedLight.width;
-//               if (savedLight.height !== undefined)
-//                 light.height = savedLight.height;
-//               // Update lookAt after position/dimension changes
-//               light.lookAt(0, 0, 0);
-//             }
-//           }
-//         });
-
-//         // Update light helpers
-//         updateLightHelpers();
-//       }
-//     } catch (error) {
-//       console.error("Error parsing saved state:", error);
-//       viewState = null;
-//     }
-//   }
-
-//   // Store current position/transformation state before reloading
-//   let currentPositionState = null;
-//   console.log(
-//     "window.preserveCurrentPosition :>> ",
-//     window.preserveCurrentPosition
-//   );
-//   console.log("camera :>> ", camera);
-//   console.log("controls :>> ", controls);
-//   console.log("rotationGroup :>> ", rotationGroup);
-//   if (window.preserveCurrentPosition && camera && controls && rotationGroup) {
-//     currentPositionState = {
-//       camera: {
-//         position: {
-//           x: camera.position.x,
-//           y: camera.position.y,
-//           z: camera.position.z,
-//         },
-//         rotation: {
-//           x: camera.rotation.x,
-//           y: camera.rotation.y,
-//           z: camera.rotation.z,
-//           order: camera.rotation.order,
-//         },
-//         zoom: camera.zoom,
-//       },
-//       controls: {
-//         target: {
-//           x: controls.target.x,
-//           y: controls.target.y,
-//           z: controls.target.z,
-//         },
-//       },
-//       model: rotationGroup
-//         ? {
-//             rotation: {
-//               x: rotationGroup.rotation.x,
-//               y: rotationGroup.rotation.y,
-//               z: rotationGroup.rotation.z,
-//             },
-//             position: {
-//               x: rotationGroup.position.x,
-//               y: rotationGroup.position.y,
-//               z: rotationGroup.position.z,
-//             },
-//           }
-//         : null,
-//     };
-
-//     // Also capture handle positions if they exist
-//     if (movementHandle && rotationHandle) {
-//       currentPositionState.handles = {
-//         currentRotation: currentRotation,
-//         movementHandle: {
-//           position: {
-//             x: movementHandle.position.x,
-//             y: movementHandle.position.y,
-//             z: movementHandle.position.z,
-//           },
-//           visible: movementHandle.visible,
-//         },
-//         rotationHandle: {
-//           position: {
-//             x: rotationHandle.position.x,
-//             y: rotationHandle.position.y,
-//             z: rotationHandle.position.z,
-//           },
-//           visible: rotationHandle.visible,
-//         },
-//       };
-//     }
-//   }
-
-//   // Store the URL for reloading
-//   window.lastLoadedSvgUrl = url;
-
-//   // Clear existing rotation group
-//   if (rotationGroup) {
-//     scene.remove(rotationGroup);
-//   }
-
-//   // Create a new rotation group
-//   rotationGroup = new THREE.Group();
-//   scene.add(rotationGroup);
-
-//   // Load the SVG with SVGLoader
-//   loader.load(
-//     url,
-//     function (data) {
-//       console.log("SVG loaded successfully");
-
-//       // Create SVG group to hold all meshes
-//       svgGroup = new THREE.Group();
-
-//       // Track if we successfully added any valid objects
-//       let addedValidObject = false;
-
-//       let counter = 0;
-
-//       // Set model color from saved state if available
-//       if (viewState && viewState.rendering && viewState.rendering.modelColor) {
-//         threeColor = new THREE.Color(viewState.rendering.modelColor);
-//       }
-
-//       // Process all paths from the SVG
-//       data.paths.forEach((path, pathIndex) => {
-//         try {
-//           counter++;
-
-//           // Get style from path userData
-//           const pathStyle = path.userData?.style || {};
-//           const fillColor = pathStyle.fill;
-//           const fillOpacity = pathStyle.fillOpacity;
-//           const strokeColor = pathStyle.stroke;
-//           const strokeOpacity = pathStyle.strokeOpacity;
-//           const strokeWidth = parseFloat(pathStyle.strokeWidth) || 1;
-
-//           // Skip paths with neither fill nor stroke
-//           if (
-//             (fillColor === "none" || !fillColor) &&
-//             (strokeColor === "none" || !strokeColor)
-//           ) {
-//             return;
-//           }
-
-//           // Process fill for paths that have fill
-//           if (fillColor && fillColor !== "none") {
-//             // Create fill material
-//             let fillMaterial;
-//             try {
-//               // Use saved color if available, otherwise use the path's color
-//               const color =
-//                 viewState && viewState.rendering
-//                   ? threeColor
-//                   : new THREE.Color(fillColor);
-
-//               if (!viewState || !viewState.rendering) {
-//                 threeColor = color; // Only update threeColor if not from saved state
-//               }
-
-//               fillMaterial = new THREE.MeshStandardMaterial({
-//                 color: color,
-//                 side: THREE.DoubleSide,
-//                 flatShading: false,
-//                 transparent: fillOpacity !== undefined && fillOpacity < 1,
-//                 opacity:
-//                   fillOpacity !== undefined ? parseFloat(fillOpacity) : 1,
-//                 metalness: window.customMetalness || 0.8,
-//                 roughness: window.customRoughness || 0.2,
-//               });
-//             } catch (e) {
-//               console.warn(
-//                 `Couldn't parse fill color ${fillColor}, using default`
-//               );
-//               fillMaterial = new THREE.MeshStandardMaterial({
-//                 color: 0x00ff00,
-//                 side: THREE.DoubleSide,
-//                 flatShading: false,
-//                 metalness: window.customMetalness || 0.8,
-//                 roughness: window.customRoughness || 0.2,
-//               });
-//             }
-
-//             // Convert path to shapes without detecting holes
-//             const shapes = path.toShapes(false);
-
-//             if (shapes && shapes.length > 0) {
-//               // Process each shape for fill
-//               shapes.forEach((shape, shapeIndex) => {
-//                 try {
-//                   if (!shape || !shape.curves || shape.curves.length === 0) {
-//                     return;
-//                   }
-
-//                   // Extrusion settings with smoothing options
-//                   const extrudeSettings = {
-//                     depth: window.customExtrusionDepth || 10,
-//                     bevelEnabled:
-//                       window.customBevelEnabled !== undefined
-//                         ? window.customBevelEnabled
-//                         : true,
-//                     bevelThickness: 0.3,
-//                     bevelSize: 0.3,
-//                     bevelOffset: 0,
-//                     bevelSegments: 5,
-//                     curveSegments:
-//                       window.customCurveSegments !== undefined
-//                         ? window.customCurveSegments
-//                         : 24,
-//                   };
-
-//                   // Create geometry with extrusion
-//                   const geometry = new THREE.ExtrudeGeometry(
-//                     shape,
-//                     extrudeSettings
-//                   );
-
-//                   // Compute vertex normals for smooth shading
-//                   geometry.computeVertexNormals();
-
-//                   // Check for invalid geometry
-//                   if (hasNaN(geometry)) {
-//                     console.warn(
-//                       `Invalid geometry in path ${pathIndex}, shape ${shapeIndex}`
-//                     );
-//                     return;
-//                   }
-
-//                   // Create mesh
-//                   const mesh = new THREE.Mesh(geometry, fillMaterial.clone());
-
-//                   mesh.receiveShadow = true;
-//                   mesh.castShadow = true;
-
-//                   // Flip Y axis to match SVG coordinate system
-//                   mesh.scale.y = -1;
-
-//                   // Add to SVG group
-//                   svgGroup.add(mesh);
-//                   addedValidObject = true;
-
-//                   console.log(
-//                     `Added filled shape ${shapeIndex} from path ${pathIndex}`
-//                   );
-//                 } catch (error) {
-//                   console.warn(
-//                     `Error creating filled shape ${shapeIndex} from path ${pathIndex}:`,
-//                     error
-//                   );
-//                 }
-//               });
-//             }
-//           }
-
-//           // Process stroke for paths that have stroke
-//           if (strokeColor && strokeColor !== "none") {
-//             try {
-//               // Create stroke material
-//               let strokeMaterial;
-//               try {
-//                 // Use saved color if available, otherwise use the original stroke color
-//                 const color =
-//                   viewState && viewState.rendering
-//                     ? threeColor
-//                     : new THREE.Color(strokeColor);
-
-//                 strokeMaterial = new THREE.MeshStandardMaterial({
-//                   color: color,
-//                   side: THREE.DoubleSide,
-//                   flatShading: false,
-//                   transparent: strokeOpacity !== undefined && strokeOpacity < 1,
-//                   opacity:
-//                     strokeOpacity !== undefined ? parseFloat(strokeOpacity) : 1,
-//                   metalness: window.customMetalness || 0.8,
-//                   roughness: window.customRoughness || 0.2,
-//                 });
-//               } catch (e) {
-//                 console.warn(
-//                   `Couldn't parse stroke color ${strokeColor}, using default`
-//                 );
-//                 strokeMaterial = new THREE.MeshStandardMaterial({
-//                   color: 0x444444,
-//                   side: THREE.DoubleSide,
-//                   flatShading: false,
-//                   metalness: window.customMetalness || 0.8,
-//                   roughness: window.customRoughness || 0.2,
-//                 });
-//               }
-
-//               // Get points from path subpaths
-//               path.subPaths.forEach((subPath, subPathIndex) => {
-//                 const points = subPath.getPoints();
-
-//                 if (points.length < 2) {
-//                   return; // Need at least 2 points for a line
-//                 }
-
-//                 console.log(
-//                   `Processing stroke for subpath ${subPathIndex} with ${points.length} points`
-//                 );
-
-//                 // Check if points are valid
-//                 if (!hasValidPoints(points)) {
-//                   console.warn(`Invalid points in subpath ${subPathIndex}`);
-//                   return;
-//                 }
-
-//                 // Create thick line shapes from points
-//                 const lineShapes = createThickLineFromPoints(
-//                   points,
-//                   strokeWidth || 1
-//                 );
-
-//                 if (!lineShapes || lineShapes.length === 0) {
-//                   console.warn(
-//                     `Failed to create line shapes for subpath ${subPathIndex}`
-//                   );
-//                   return;
-//                 }
-
-//                 // Process line shapes for strokes
-//                 lineShapes.forEach((lineShape, lineShapeIndex) => {
-//                   try {
-//                     // Extrusion settings for stroke with smoothing options
-//                     const extrudeSettings = {
-//                       depth: window.customExtrusionDepth || 10,
-//                       bevelEnabled:
-//                         window.customBevelEnabled !== undefined
-//                           ? window.customBevelEnabled
-//                           : true,
-//                       bevelThickness: 0.3,
-//                       bevelSize: 0.3,
-//                       bevelOffset: 0,
-//                       bevelSegments: 5,
-//                       curveSegments:
-//                         window.customCurveSegments !== undefined
-//                           ? window.customCurveSegments
-//                           : 24,
-//                     };
-
-//                     // Create geometry with extrusion
-//                     const geometry = new THREE.ExtrudeGeometry(
-//                       lineShape,
-//                       extrudeSettings
-//                     );
-
-//                     // Compute vertex normals for smooth shading
-//                     geometry.computeVertexNormals();
-
-//                     // Check for invalid geometry
-//                     if (hasNaN(geometry)) {
-//                       console.warn(
-//                         `Invalid geometry in stroke ${subPathIndex}, shape ${lineShapeIndex}`
-//                       );
-//                       return;
-//                     }
-
-//                     // Create mesh
-//                     const mesh = new THREE.Mesh(
-//                       geometry,
-//                       strokeMaterial.clone()
-//                     );
-
-//                     // Flip Y axis to match SVG coordinate system
-//                     mesh.scale.y = -1;
-
-//                     // Add to SVG group
-//                     svgGroup.add(mesh);
-//                     addedValidObject = true;
-
-//                     console.log(
-//                       `Added stroke shape from subpath ${subPathIndex}`
-//                     );
-//                   } catch (error) {
-//                     console.warn(
-//                       `Error creating stroke shape from subpath ${subPathIndex}:`,
-//                       error
-//                     );
-//                   }
-//                 });
-//               });
-//             } catch (error) {
-//               console.warn(
-//                 `Error processing stroke for path ${pathIndex}:`,
-//                 error
-//               );
-//             }
-//           }
-//         } catch (error) {
-//           console.warn(`Error processing path ${pathIndex}:`, error);
-//         }
-//       });
-
-//       console.log("Processed paths:", counter);
-
-//       // If we successfully added objects, add SVG group to rotation group
-//       if (addedValidObject) {
-//         // Add to rotation group
-//         rotationGroup.add(svgGroup);
-
-//         // Center and scale the group
-//         try {
-//           const box = new THREE.Box3();
-
-//           svgGroup.traverse(function (child) {
-//             if (child.isMesh) {
-//               child.geometry.computeBoundingBox();
-//               const childBox = child.geometry.boundingBox;
-
-//               if (
-//                 childBox &&
-//                 !isNaN(childBox.min.x) &&
-//                 !isNaN(childBox.min.y) &&
-//                 !isNaN(childBox.min.z) &&
-//                 !isNaN(childBox.max.x) &&
-//                 !isNaN(childBox.max.y) &&
-//                 !isNaN(childBox.max.z)
-//               ) {
-//                 childBox.applyMatrix4(child.matrixWorld);
-//                 box.union(childBox);
-//               } else {
-//                 console.warn("Invalid bounding box:", child);
-//               }
-//             }
-//           });
-
-//           if (box.min.x !== Infinity) {
-//             // Center the SVG at local origin
-//             const center = box.getCenter(new THREE.Vector3());
-//             svgGroup.position.sub(center);
-
-//             // Calculate scale to make it fit nicely in the viewport
-//             const viewportWidth = camera.right - camera.left;
-//             const viewportHeight = camera.top - camera.bottom;
-
-//             // Calculate the smallest dimension (width or height)
-//             const smallestViewportDim = Math.min(viewportWidth, viewportHeight);
-
-//             // Calculate target size (one-third of the smallest viewport dimension)
-//             const targetSize = smallestViewportDim / 3;
-
-//             // Calculate SVG original size
-//             const boxSize = box.getSize(new THREE.Vector3());
-//             const maxSvgDim = Math.max(boxSize.x, boxSize.y, boxSize.z);
-
-//             if (maxSvgDim > 0 && !isNaN(maxSvgDim)) {
-//               // Calculate scale to make SVG fit properly
-//               const scale = targetSize / maxSvgDim;
-//               svgGroup.scale.set(scale, scale, scale);
-//             }
-//           }
-//         } catch (error) {
-//           console.error("Error processing SVG group:", error);
-//         }
-
-//         // Now that SVG is processed, setup the handles
-//         setupHandles();
-
-//         // Determine whether to use stored position or saved state
-//         if (window.preserveCurrentPosition && currentPositionState) {
-//           console.log("Preserving current position state");
-
-//           // Apply camera position
-//           if (currentPositionState.camera) {
-//             if (currentPositionState.camera.position) {
-//               camera.position.set(
-//                 currentPositionState.camera.position.x,
-//                 currentPositionState.camera.position.y,
-//                 currentPositionState.camera.position.z
-//               );
-//             }
-
-//             if (currentPositionState.camera.rotation) {
-//               if (currentPositionState.camera.rotation.order) {
-//                 camera.rotation.order =
-//                   currentPositionState.camera.rotation.order;
-//               }
-
-//               camera.rotation.set(
-//                 currentPositionState.camera.rotation.x,
-//                 currentPositionState.camera.rotation.y,
-//                 currentPositionState.camera.rotation.z
-//               );
-//             }
-
-//             if (currentPositionState.camera.zoom !== undefined) {
-//               camera.zoom = currentPositionState.camera.zoom;
-//             }
-
-//             camera.updateProjectionMatrix();
-//           }
-
-//           // Apply controls
-//           if (currentPositionState.controls && controls) {
-//             if (currentPositionState.controls.target) {
-//               controls.target.set(
-//                 currentPositionState.controls.target.x,
-//                 currentPositionState.controls.target.y,
-//                 currentPositionState.controls.target.z
-//               );
-//             }
-
-//             controls.update();
-//           }
-
-//           // Apply model position/rotation
-//           if (currentPositionState.model && rotationGroup) {
-//             if (currentPositionState.model.rotation) {
-//               rotationGroup.rotation.set(
-//                 currentPositionState.model.rotation.x,
-//                 currentPositionState.model.rotation.y,
-//                 currentPositionState.model.rotation.z
-//               );
-//             }
-
-//             if (currentPositionState.model.position) {
-//               rotationGroup.position.set(
-//                 currentPositionState.model.position.x,
-//                 currentPositionState.model.position.y,
-//                 currentPositionState.model.position.z
-//               );
-//             }
-//           }
-
-//           // Apply handle state
-//           if (currentPositionState.handles) {
-//             if (currentPositionState.handles.currentRotation !== undefined) {
-//               currentRotation = currentPositionState.handles.currentRotation;
-//             }
-
-//             if (currentPositionState.handles.movementHandle && movementHandle) {
-//               if (currentPositionState.handles.movementHandle.position) {
-//                 movementHandle.position.set(
-//                   currentPositionState.handles.movementHandle.position.x,
-//                   currentPositionState.handles.movementHandle.position.y,
-//                   currentPositionState.handles.movementHandle.position.z
-//                 );
-//               }
-
-//               if (
-//                 currentPositionState.handles.movementHandle.visible !==
-//                 undefined
-//               ) {
-//                 movementHandle.visible =
-//                   currentPositionState.handles.movementHandle.visible;
-//               }
-//             }
-
-//             if (currentPositionState.handles.rotationHandle && rotationHandle) {
-//               if (currentPositionState.handles.rotationHandle.position) {
-//                 rotationHandle.position.set(
-//                   currentPositionState.handles.rotationHandle.position.x,
-//                   currentPositionState.handles.rotationHandle.position.y,
-//                   currentPositionState.handles.rotationHandle.position.z
-//                 );
-//               }
-
-//               if (
-//                 currentPositionState.handles.rotationHandle.visible !==
-//                 undefined
-//               ) {
-//                 rotationHandle.visible =
-//                   currentPositionState.handles.rotationHandle.visible;
-//               }
-//             }
-//           }
-//         }
-//         // Apply saved state if not preserving current position
-//         else if (viewState) {
-//           console.log("Applying saved state position/rotation");
-
-//           // Apply camera and controls
-//           if (viewState.camera) {
-//             if (viewState.camera.position) {
-//               camera.position.set(
-//                 viewState.camera.position.x,
-//                 viewState.camera.position.y,
-//                 viewState.camera.position.z
-//               );
-//             }
-
-//             if (viewState.camera.rotation) {
-//               if (viewState.camera.rotation.order) {
-//                 camera.rotation.order = viewState.camera.rotation.order;
-//               }
-
-//               camera.rotation.set(
-//                 viewState.camera.rotation.x,
-//                 viewState.camera.rotation.y,
-//                 viewState.camera.rotation.z
-//               );
-//             }
-
-//             if (viewState.camera.zoom !== undefined) {
-//               camera.zoom = viewState.camera.zoom;
-//             }
-
-//             // Apply orthographic camera properties
-//             if (camera.isOrthographicCamera) {
-//               if (viewState.camera.left !== undefined)
-//                 camera.left = viewState.camera.left;
-//               if (viewState.camera.right !== undefined)
-//                 camera.right = viewState.camera.right;
-//               if (viewState.camera.top !== undefined)
-//                 camera.top = viewState.camera.top;
-//               if (viewState.camera.bottom !== undefined)
-//                 camera.bottom = viewState.camera.bottom;
-//               if (viewState.camera.near !== undefined)
-//                 camera.near = viewState.camera.near;
-//               if (viewState.camera.far !== undefined)
-//                 camera.far = viewState.camera.far;
-//             }
-
-//             camera.updateProjectionMatrix();
-//           }
-
-//           // Apply controls state
-//           if (viewState.controls && controls) {
-//             if (viewState.controls.target) {
-//               controls.target.set(
-//                 viewState.controls.target.x,
-//                 viewState.controls.target.y,
-//                 viewState.controls.target.z
-//               );
-//             }
-
-//             controls.update();
-//           }
-
-//           // Apply model transformations
-//           if (viewState.model) {
-//             if (viewState.model.rotation) {
-//               rotationGroup.rotation.set(
-//                 viewState.model.rotation.x,
-//                 viewState.model.rotation.y,
-//                 viewState.model.rotation.z
-//               );
-//             }
-
-//             if (viewState.model.position) {
-//               rotationGroup.position.set(
-//                 viewState.model.position.x,
-//                 viewState.model.position.y,
-//                 viewState.model.position.z
-//               );
-//             }
-//           }
-
-//           // Apply handle state
-//           if (viewState.handles) {
-//             applyHandlesState(viewState.handles);
-//           }
-//         }
-
-//         // Reset the preserve flag after use
-//         window.preserveCurrentPosition = false;
-
-//         console.log("SVG processing complete and state restored");
-//       } else {
-//         console.error("No valid objects found in SVG");
-//       }
-
-//       // Create UI Controls and update to match saved state
-//       createUIControls(svgGroup);
-//       if (viewState && viewState.rendering) {
-//         updateUIFromSettings(viewState.rendering);
-//       }
-
-//       // Update lighting UI if needed
-//       if (viewState && viewState.lighting) {
-//         updateLightingControlsUI(viewState.lighting);
-//       }
-//     },
-//     // Progress callback
-//     function (xhr) {
-//       console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
-//     },
-//     // Error callback
-//     function (error) {
-//       console.error("Error loading SVG:", error);
-//     }
-//   );
-// }
 
 function captureCurrentViewState() {
   if (!camera || !controls || !rotationGroup) return null;
@@ -1688,9 +894,9 @@ function loadSVG(url) {
       // Apply rendering settings right away
       if (viewState.rendering) {
         // Model color will be applied after SVG loads
-
         // Background color
-        if (viewState.rendering.backgroundColor !== null) {
+        if (viewState.rendering.backgroundColor) {
+          backgroundColor = viewState.rendering.backgroundColor;
           scene.background = new THREE.Color(
             viewState.rendering.backgroundColor
           );
@@ -1848,7 +1054,9 @@ function loadSVG(url) {
             try {
               // Use saved color if available, otherwise use the path's color
               const color =
-                viewState && viewState.rendering
+                viewState &&
+                viewState.rendering &&
+                viewState.rendering.modelColor
                   ? threeColor
                   : new THREE.Color(fillColor);
 
@@ -1958,7 +1166,9 @@ function loadSVG(url) {
               try {
                 // Use saved color if available, otherwise use the original stroke color
                 const color =
-                  viewState && viewState.rendering
+                  viewState &&
+                  viewState.rendering &&
+                  viewState.rendering.modelColor
                     ? threeColor
                     : new THREE.Color(strokeColor);
 
@@ -2434,17 +1644,6 @@ function createUIControls(svgGroup) {
     document.getElementById("depth-value").textContent = e.target.value;
   });
 
-  // document.getElementById("apply-depth").addEventListener("click", () => {
-  //   const depth = parseInt(document.getElementById("extrusion-depth").value);
-  //   window.customExtrusionDepth = depth;
-
-  //   if (window.lastLoadedSvgUrl) {
-  //     loadSVG(window.lastLoadedSvgUrl);
-  //   } else {
-  //     alert("No SVG has been loaded yet.");
-  //   }
-  // });
-
   document.getElementById("apply-depth").addEventListener("click", () => {
     const depth = parseInt(document.getElementById("extrusion-depth").value);
     window.customExtrusionDepth = depth;
@@ -2454,6 +1653,9 @@ function createUIControls(svgGroup) {
     updateSavedState((state) => {
       if (!state.rendering) state.rendering = {};
       state.rendering.extrusionDepth = depth;
+      console.log("backgroundColor :>> ", backgroundColor);
+      state.rendering.backgroundColor = backgroundColor;
+      state.rendering.modelColor = threeColor.getHex();
       return state;
     });
 
@@ -2468,6 +1670,7 @@ function createUIControls(svgGroup) {
   document.querySelectorAll(".bg-btn").forEach((button) => {
     button.addEventListener("click", () => {
       const color = parseInt(button.dataset.color);
+      backgroundColor = color;
       scene.background = new THREE.Color(color);
     });
   });
@@ -2478,19 +1681,6 @@ function createUIControls(svgGroup) {
       const currentVisibility = movementHandle.visible;
       updateHandlesVisibility(!currentVisibility);
     }
-  });
-
-  // Export buttons
-  document.getElementById("export-gltf").addEventListener("click", () => {
-    exportToGLTF(svgGroup);
-  });
-
-  document.getElementById("export-obj").addEventListener("click", () => {
-    exportToOBJ(svgGroup);
-  });
-
-  document.getElementById("export-stl").addEventListener("click", () => {
-    exportToSTL(svgGroup);
   });
 
   const outputWidthElement = document.getElementById("output-width");
@@ -2556,18 +1746,6 @@ function createUIControls(svgGroup) {
     const value = parseInt(e.target.value);
     document.getElementById("curve-segments-value").textContent = value;
   });
-
-  // document.getElementById("apply-smoothing").addEventListener("click", () => {
-  //   window.customBevelEnabled =
-  //     document.getElementById("edge-bevel-enabled").checked;
-  //   window.customCurveSegments = parseInt(
-  //     document.getElementById("curve-segments").value
-  //   );
-
-  //   if (window.lastLoadedSvgUrl) {
-  //     loadSVG(window.lastLoadedSvgUrl);
-  //   }
-  // });
 
   document.getElementById("apply-smoothing").addEventListener("click", () => {
     window.customBevelEnabled =
@@ -3053,7 +2231,7 @@ function createLightingControls() {
       window.lights.directional.intensity = 0.8;
       window.lights.directional.color.set(0xffffff);
       window.lights.directional.position.set(1, 1, 1);
-      window.lights.directional.castShadow = true;
+      window.lights.directional.castShadow = false;
       window.lights.directional.visible = true;
       document.getElementById("directional-intensity").value = 0.8;
       document.getElementById("directional-value").textContent = "0.8";
@@ -3063,7 +2241,7 @@ function createLightingControls() {
       document.getElementById("directional-y-value").textContent = "1.0";
       document.getElementById("directional-z-pos").value = 1;
       document.getElementById("directional-z-value").textContent = "1.0";
-      document.getElementById("directional-cast-shadow").checked = true;
+      document.getElementById("directional-cast-shadow").checked = false;
       document.getElementById("directional-light-enabled").checked = true;
       if (window.directionalHelper) window.directionalHelper.update();
     }
@@ -3075,8 +2253,8 @@ function createLightingControls() {
       window.lights.point.position.set(0, 0, 70);
       window.lights.point.distance = 200;
       window.lights.point.decay = 1;
-      window.lights.point.castShadow = true;
-      window.lights.point.visible = true;
+      window.lights.point.castShadow = false;
+      window.lights.point.visible = false;
       document.getElementById("point-intensity").value = 50;
       document.getElementById("point-value").textContent = "50.0";
       document.getElementById("point-x-pos").value = 0;
@@ -3089,8 +2267,8 @@ function createLightingControls() {
       document.getElementById("point-distance-value").textContent = "200";
       document.getElementById("point-decay").value = 1;
       document.getElementById("point-decay-value").textContent = "1.0";
-      document.getElementById("point-cast-shadow").checked = true;
-      document.getElementById("point-light-enabled").checked = true;
+      document.getElementById("point-cast-shadow").checked = false;
+      document.getElementById("point-light-enabled").checked = false;
       if (window.pointHelper) window.pointHelper.update();
     }
 
@@ -3102,8 +2280,8 @@ function createLightingControls() {
       window.lights.spot.target.position.set(0, 0, 0);
       window.lights.spot.distance = 300;
       window.lights.spot.angle = Math.PI / 6;
-      window.lights.spot.castShadow = true;
-      window.lights.spot.visible = true;
+      window.lights.spot.castShadow = false;
+      window.lights.spot.visible = false;
       document.getElementById("spot-intensity").value = 60;
       document.getElementById("spot-value").textContent = "60.0";
       document.getElementById("spot-x-pos").value = 100;
@@ -3122,8 +2300,8 @@ function createLightingControls() {
       document.getElementById("spot-distance-value").textContent = "300";
       document.getElementById("spot-angle").value = 30;
       document.getElementById("spot-angle-value").textContent = "30°";
-      document.getElementById("spot-cast-shadow").checked = true;
-      document.getElementById("spot-light-enabled").checked = true;
+      document.getElementById("spot-cast-shadow").checked = false;
+      document.getElementById("spot-light-enabled").checked = false;
       if (window.spotHelper) window.spotHelper.update();
     }
 
@@ -3132,10 +2310,10 @@ function createLightingControls() {
       window.lights.hemisphere.intensity = 0.3;
       window.lights.hemisphere.color.set(0x0088ff); // Sky color
       window.lights.hemisphere.groundColor.set(0xff8800); // Ground color
-      window.lights.hemisphere.visible = true;
+      window.lights.hemisphere.visible = false;
       document.getElementById("hemisphere-intensity").value = 0.3;
       document.getElementById("hemisphere-value").textContent = "0.3";
-      document.getElementById("hemisphere-light-enabled").checked = true;
+      document.getElementById("hemisphere-light-enabled").checked = false;
       if (window.hemisphereHelper) window.hemisphereHelper.update();
     }
 
@@ -3147,7 +2325,7 @@ function createLightingControls() {
       window.lights.rectArea.width = 100;
       window.lights.rectArea.height = 100;
       window.lights.rectArea.lookAt(0, 0, 0);
-      window.lights.rectArea.visible = true;
+      window.lights.rectArea.visible = false;
       document.getElementById("rectArea-intensity").value = 3;
       document.getElementById("rectArea-value").textContent = "3.0";
       document.getElementById("rectArea-x-pos").value = -100;
@@ -3160,7 +2338,7 @@ function createLightingControls() {
       document.getElementById("rectArea-width-value").textContent = "100";
       document.getElementById("rectArea-height").value = 100;
       document.getElementById("rectArea-height-value").textContent = "100";
-      document.getElementById("rectArea-light-enabled").checked = true;
+      document.getElementById("rectArea-light-enabled").checked = false;
       if (window.rectAreaHelper) window.rectAreaHelper.update();
     }
 
@@ -3199,8 +2377,8 @@ function applyMaterialProperties() {
               flatShading: mat.flatShading || true,
               transparent: mat.transparent || false,
               opacity: mat.opacity !== undefined ? mat.opacity : 1,
-              metalness: window.customMetalness || 0.5,
-              roughness: window.customRoughness || 0.5,
+              metalness: window.customMetalness || 0.8,
+              roughness: window.customRoughness || 0.2,
 
               receiveShadow: true,
               castShadow: true,
@@ -3229,8 +2407,8 @@ function applyMaterialProperties() {
             transparent: child.material.transparent || false,
             opacity:
               child.material.opacity !== undefined ? child.material.opacity : 1,
-            metalness: window.customMetalness || 0.5,
-            roughness: window.customRoughness || 0.5,
+            metalness: window.customMetalness || 0.8,
+            roughness: window.customRoughness || 0.2,
             receiveShadow: true,
             castShadow: true,
           });
@@ -3393,135 +2571,6 @@ function restoreViewState() {
   }
 }
 
-// Helper function to apply handle state
-// function applyHandlesState(handlesState) {
-//   // Apply current rotation value
-//   if (handlesState.currentRotation !== undefined) {
-//     currentRotation = handlesState.currentRotation;
-
-//     // If rotationGroup exists, ensure rotation is applied
-//     if (rotationGroup && rotationGroup.rotation) {
-//       rotationGroup.rotation.z = currentRotation;
-//     }
-//   }
-
-//   // Apply movement handle state
-//   if (handlesState.movementHandle && movementHandle) {
-//     if (handlesState.movementHandle.position) {
-//       movementHandle.position.set(
-//         handlesState.movementHandle.position.x,
-//         handlesState.movementHandle.position.y,
-//         handlesState.movementHandle.position.z
-//       );
-//     }
-
-//     if (handlesState.movementHandle.visible !== undefined) {
-//       movementHandle.visible = handlesState.movementHandle.visible;
-//     }
-//   }
-
-//   // Apply rotation handle state
-//   if (handlesState.rotationHandle && rotationHandle) {
-//     if (handlesState.rotationHandle.position) {
-//       rotationHandle.position.set(
-//         handlesState.rotationHandle.position.x,
-//         handlesState.rotationHandle.position.y,
-//         handlesState.rotationHandle.position.z
-//       );
-//     }
-
-//     if (handlesState.rotationHandle.visible !== undefined) {
-//       rotationHandle.visible = handlesState.rotationHandle.visible;
-//     }
-//   }
-// }
-
-// function saveCurrentState() {
-//   const cameraState = {
-//     position: {
-//       x: camera.position.x,
-//       y: camera.position.y,
-//       z: camera.position.z,
-//     },
-//     rotation: {
-//       x: camera.rotation.x,
-//       y: camera.rotation.y,
-//       z: camera.rotation.z,
-//       order: camera.rotation.order,
-//     },
-//     zoom: camera.zoom,
-//     left: camera.left,
-//     right: camera.right,
-//     top: camera.top,
-//     bottom: camera.bottom,
-//     near: camera.near,
-//     far: camera.far,
-//   };
-
-//   const controlsState = {
-//     target: {
-//       x: controls.target.x,
-//       y: controls.target.y,
-//       z: controls.target.z,
-//     },
-//   };
-
-//   // Add model-specific transformations
-//   const modelState = {};
-
-//   if (rotationGroup) {
-//     modelState.rotation = {
-//       x: rotationGroup.rotation.x,
-//       y: rotationGroup.rotation.y,
-//       z: rotationGroup.rotation.z,
-//     };
-
-//     modelState.position = {
-//       x: rotationGroup.position.x,
-//       y: rotationGroup.position.y,
-//       z: rotationGroup.position.z,
-//     };
-//   }
-
-//   // Save handle positions and current rotation
-//   const handlesState = {
-//     currentRotation: currentRotation,
-//     movementHandle: movementHandle
-//       ? {
-//           position: {
-//             x: movementHandle.position.x,
-//             y: movementHandle.position.y,
-//             z: movementHandle.position.z,
-//           },
-//           visible: movementHandle.visible,
-//         }
-//       : null,
-
-//     rotationHandle: rotationHandle
-//       ? {
-//           position: {
-//             x: rotationHandle.position.x,
-//             y: rotationHandle.position.y,
-//             z: rotationHandle.position.z,
-//           },
-//           visible: rotationHandle.visible,
-//         }
-//       : null,
-//   };
-
-//   const viewState = {
-//     camera: cameraState,
-//     controls: controlsState,
-//     model: modelState,
-//     handles: handlesState,
-//     lastLoadedSvgUrl: window.lastLoadedSvgUrl,
-//   };
-
-//   // Save to localStorage
-//   localStorage.setItem("svgViewState", JSON.stringify(viewState));
-//   console.log("View state saved:", viewState);
-// }
-
 function saveCurrentState() {
   const cameraState = {
     position: {
@@ -3612,8 +2661,8 @@ function saveCurrentState() {
     curveSegments: window.customCurveSegments || 24,
 
     // Material properties
-    metalness: window.customMetalness || 0.5,
-    roughness: window.customRoughness || 0.5,
+    metalness: window.customMetalness || 0.8,
+    roughness: window.customRoughness || 0.2,
   };
 
   // Save light states
@@ -3634,6 +2683,7 @@ function saveCurrentState() {
                 z: light.position.z,
               }
             : undefined,
+          castShadow: light.castShadow,
         };
 
         // Add type-specific properties
