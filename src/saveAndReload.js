@@ -3934,9 +3934,6 @@ function updateLightingControlsUI(lightingState) {
 
 // Update the init function to remove the timeout
 function init() {
-  // window.customMetalness = 0.5;
-  // window.customRoughness = 0.5;
-
   // Check if we have a saved state
   const savedState = localStorage.getItem("svgViewState");
 
