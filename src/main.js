@@ -1011,6 +1011,7 @@ function loadSVG(url) {
   loader.load(
     url,
     function (data) {
+      console.log("data ============ ", data);
       console.log("SVG loaded successfully");
 
       // Create SVG group to hold all meshes
@@ -2560,7 +2561,8 @@ function restoreViewState() {
 
     // Restore last loaded SVG URL if needed
     if (viewState.lastLoadedSvgUrl && !window.lastLoadedSvgUrl) {
-      window.lastLoadedSvgUrl = viewState.lastLoadedSvgUrl;
+      window.lastLoadedSvgUrl =
+        "../assets/x-02-long.svg" || viewState.lastLoadedSvgUrl;
     }
 
     console.log("View state restored");
@@ -2992,16 +2994,17 @@ function init() {
     try {
       const viewState = JSON.parse(savedState);
       if (viewState.lastLoadedSvgUrl) {
-        loadSVG(viewState.lastLoadedSvgUrl);
+        // loadSVG(viewState.lastLoadedSvgUrl);
+        loadSVG("../assets/xxx-01.svg");
       } else {
-        loadSVG("../assets/vector.svg");
+        loadSVG("../assets/x-02-long.svg");
       }
     } catch (e) {
       console.error("Error parsing saved state:", e);
-      loadSVG("../assets/vector.svg");
+      loadSVG("../assets/x-02-long.svg");
     }
   } else {
-    loadSVG("../assets/vector.svg");
+    loadSVG("../assets/x-02-long.svg");
   }
 
   // Start animation loop
