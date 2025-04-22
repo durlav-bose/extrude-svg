@@ -1581,29 +1581,18 @@
         <!-- Reload SVG Button -->
         <button id="reload-svg" class="main-button">Reload SVG</button>
         <button id="save-details" class="main-button">Save details</button>
-        <div style="margin-bottom: 15px;">
-          <div style="margin-bottom: 5px;">Anchor Point:</div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
-            <button id="anchor-tl" style="padding: 5px;">◤</button>
-            <button id="anchor-tc" style="padding: 5px;">▲</button>
-            <button id="anchor-tr" style="padding: 5px;">◥</button>
-            <button id="anchor-ml" style="padding: 5px;">◀</button>
-            <button id="anchor-mc" style="padding: 5px;">⦿</button>
-            <button id="anchor-mr" style="padding: 5px;">▶</button>
-            <button id="anchor-bl" style="padding: 5px;">◣</button>
-            <button id="anchor-bc" style="padding: 5px;">▼</button>
-            <button id="anchor-br" style="padding: 5px;">◢</button>
-          </div>
-          <div style="margin-top: 5px;">
-            <input type="checkbox" id="use-anchor-scaling" checked>
-            <label for="use-anchor-scaling">Use anchor point for scaling</label>
-          </div>
-          <div style="margin-bottom: 15px;">
-            <div style="margin-bottom: 5px;">Scale Controls:</div>
-            <button id="scale-up" style="padding: 5px; margin-right: 5px;">Scale Up (×1.1)</button>
-            <button id="scale-down" style="padding: 5px;">Scale Down (×0.9)</button>
-          </div>
-        </div>
+        <label for="anchor-point-select">Anchor point</label>
+        <select name="anchor-point" id="anchor-point-select">
+          <option value="center">Center</option>
+  <option value="top-left">Top Left</option>
+  <option value="top-center">Top Center</option>
+  <option value="top-right">Top Right</option>
+  <option value="middle-left">Middle Left</option>
+  <option value="middle-right">Middle Right</option>
+  <option value="bottom-left">Bottom Left</option>
+  <option value="bottom-center">Bottom Center</option>
+  <option value="bottom-right">Bottom Right</option>
+        </select>
       </div>
 
       <div class="canvas-container">
@@ -1803,7 +1792,7 @@
       document.addEventListener("DOMContentLoaded", function () {
         // Load your main script
         const script = document.createElement("script");
-        script.src = "src/main.js";
+        script.src = "src/anchorPoint.js";
         document.body.appendChild(script);
       });
     </script>

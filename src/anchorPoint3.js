@@ -3401,9 +3401,9 @@ function init() {
       const viewState = JSON.parse(savedState);
       if (viewState.lastLoadedSvgUrl) {
         // loadSVG(viewState.lastLoadedSvgUrl);
-        loadSVG("../assets/x-01.svg");
+        loadSVG("../assets/xxx-01.svg");
       } else {
-        loadSVG("../assets/x-01.svg");
+        loadSVG("../assets/x-02-long.svg");
       }
     } catch (e) {
       console.error("Error parsing saved state:", e);
