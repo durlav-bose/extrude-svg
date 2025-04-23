@@ -266,7 +266,7 @@ function scaleAroundAnchorPoint(scaleFactor) {
   rotationGroup.position.y += positionAdjustmentY;
 
   // 7. Update anchor marker
-  updateAnchorMarkerPosition();
+  // updateAnchorMarkerPosition();
 }
 
 function setupCustomZoomBehavior() {
@@ -422,6 +422,7 @@ function loadSVG(url) {
   loader.load(
     url,
     function (data) {
+      console.log("data ============ ", data);
       console.log("SVG loaded successfully");
 
       // Create SVG group to hold all meshes
@@ -1734,7 +1735,7 @@ function init() {
 
   // Load SVG - either the one from saved state or default
   if (savedState) {
-    loadSVG("../assets/x-02.svg");
+    loadSVG("../assets/x-02-long.svg");
   } else {
     loadSVG("../assets/x-02-long.svg");
   }
