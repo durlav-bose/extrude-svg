@@ -214,12 +214,12 @@ function updateAnchorMarkerPosition() {
   const bbox = new THREE.Box3().setFromObject(svgGroup);
   const size = bbox.getSize(new THREE.Vector3());
 
-  // Calculate local position of anchor within SVG
+  // Position anchor marker based on normalized coordinates
   const x = (anchorPoint.x - 0.5) * size.x;
   const y = (anchorPoint.y - 0.5) * size.y;
 
-  // Update the marker position (in local space)
-  anchorMarker.position.set(x, y, 5);
+  // Set position in local coordinates (relative to rotation group)
+  anchorMarker.position.set(x, y, 5); // Slightly in front
 }
 
 // Function to set anchor point
@@ -238,21 +238,36 @@ function updateHandlesVisibility(visible) {
 function scaleAroundAnchorPoint(scaleFactor) {
   if (!rotationGroup || !svgGroup) return;
 
-  // 1. Calculate the anchor's current position in world space
-  const savedAnchorPos = getAnchorWorldPosition();
+  // 1. Calculate the anchor point in world coordinates
+  const bbox = new THREE.Box3().setFromObject(svgGroup);
+  const size = bbox.getSize(new THREE.Vector3());
+  const anchorX = (anchorPoint.x - 0.5) * size.x;
+  const anchorY = (anchorPoint.y - 0.5) * size.y;
 
-  // 2. Apply the new scale
-  rotationGroup.scale.x *= scaleFactor;
-  rotationGroup.scale.y *= scaleFactor;
-  rotationGroup.scale.z *= scaleFactor;
+  // 2. Store current position and scale
+  const oldPosition = rotationGroup.position.clone();
+  const oldScale = rotationGroup.scale.clone();
 
-  // 3. Get the anchor's new position after scaling
-  rotationGroup.updateMatrixWorld(true);
-  const newAnchorPos = getAnchorWorldPosition();
+  // 3. Calculate new scale
+  const newScale = {
+    x: oldScale.x * scaleFactor,
+    y: oldScale.y * scaleFactor,
+    z: oldScale.z * scaleFactor,
+  };
 
-  // 4. Move the rotation group to keep the anchor point fixed
-  rotationGroup.position.x += savedAnchorPos.x - newAnchorPos.x;
-  rotationGroup.position.y += savedAnchorPos.y - newAnchorPos.y;
+  // 4. Calculate position adjustment needed to maintain anchor point
+  const positionAdjustmentX = anchorX * (1 - scaleFactor);
+  const positionAdjustmentY = anchorY * (1 - scaleFactor);
+
+  // 5. Apply new scale
+  rotationGroup.scale.set(newScale.x, newScale.y, newScale.z);
+
+  // 6. Adjust position to maintain anchor point
+  rotationGroup.position.x += positionAdjustmentX;
+  rotationGroup.position.y += positionAdjustmentY;
+
+  // 7. Update anchor marker
+  updateAnchorMarkerPosition();
 }
 
 function setupCustomZoomBehavior() {
@@ -412,11 +427,21 @@ function loadSVG(url) {
       // Create SVG group to hold all meshes
       svgGroup = new THREE.Group();
 
-      let addedValidObject = false; // Flag to check if any valid object was added
+      // Track if we successfully added any valid objects
+      let addedValidObject = false;
+
+      // Set model color from saved state if available
+      if (viewState && viewState.rendering && viewState.rendering.modelColor) {
+        threeColor = new THREE.Color(viewState.rendering.modelColor);
+      }
+
+      let counter = 0; // Counter for paths processed
 
       // Process all paths from the SVG
       data.paths.forEach((path, pathIndex) => {
         try {
+          counter++;
+
           // Get style from path userData
           const pathStyle = path.userData?.style || {};
           const fillColor = pathStyle.fill;
@@ -461,9 +486,6 @@ function loadSVG(url) {
                 roughness: 0.2,
               });
             } catch (e) {
-              console.warn(
-                `Couldn't parse fill color ${fillColor}, using default`
-              );
               fillMaterial = new THREE.MeshStandardMaterial({
                 color: 0x00ff00,
                 side: THREE.DoubleSide,
@@ -506,9 +528,6 @@ function loadSVG(url) {
 
                   // Check for invalid geometry
                   if (hasNaN(geometry)) {
-                    console.warn(
-                      `Invalid geometry in path ${pathIndex}, shape ${shapeIndex}`
-                    );
                     return;
                   }
 
@@ -526,11 +545,11 @@ function loadSVG(url) {
                   addedValidObject = true;
 
                   console.log(
-                    `Added filled shape ${shapeIndex} from path ${pathIndex}`
+                    "Added filled shape ${shapeIndex} from path ${pathIndex}"
                   );
                 } catch (error) {
                   console.warn(
-                    `Error creating filled shape ${shapeIndex} from path ${pathIndex}:`,
+                    "Error creating filled shape ${shapeIndex} from path ${pathIndex}:",
                     error
                   );
                 }
@@ -564,7 +583,7 @@ function loadSVG(url) {
                 });
               } catch (e) {
                 console.warn(
-                  `Couldn't parse stroke color ${strokeColor}, using default`
+                  "Couldn't parse stroke color ${strokeColor}, using default"
                 );
                 strokeMaterial = new THREE.MeshStandardMaterial({
                   color: 0x444444,
@@ -584,7 +603,7 @@ function loadSVG(url) {
                 }
 
                 console.log(
-                  `Processing stroke for subpath ${subPathIndex} with ${points.length} points`
+                  "Processing stroke for subpath ${subPathIndex} with ${points.length} points"
                 );
 
                 // Check if points are valid
@@ -683,18 +702,61 @@ function loadSVG(url) {
         const center = box.getCenter(new THREE.Vector3());
         svgGroup.position.sub(center);
 
-        // Setup handles before applying any transformations
+        // Setup handles - but don't apply positions yet
         setupHandles(viewState);
 
-        // When restoring state with a saved anchor point:
-        if (viewState && viewState.handles && viewState.handles.anchorPoint) {
-          // 1. First set the normalized anchor point coordinates
-          setAnchorPoint(
-            viewState.handles.anchorPoint.x,
-            viewState.handles.anchorPoint.y
-          );
+        // Now we need to position everything correctly based on saved state
+        if (viewState) {
+          // Step 1: Apply rotation first
+          if (viewState.model && viewState.model.rotation) {
+            rotationGroup.rotation.set(
+              viewState.model.rotation.x,
+              viewState.model.rotation.y,
+              viewState.model.rotation.z
+            );
 
-          // 2. Apply scale (if any)
+            // Update current rotation for UI controls
+            currentRotation = viewState.model.rotation.z || 0;
+          }
+
+          // Step A: Apply anchor point normalized coordinates
+          if (viewState.handles && viewState.handles.anchorPoint) {
+            setAnchorPoint(
+              viewState.handles.anchorPoint.x,
+              viewState.handles.anchorPoint.y
+            );
+          }
+
+          // Step B: Calculate the current world position of the anchor point
+          const currentAnchorWorldPos = getAnchorWorldPosition();
+
+          // Step C: If we have a saved world position for the anchor point, calculate and apply offset
+          if (viewState.handles && viewState.handles.anchorWorldPosition) {
+            const targetAnchorWorldPos = new THREE.Vector3(
+              viewState.handles.anchorWorldPosition.x,
+              viewState.handles.anchorWorldPosition.y,
+              viewState.handles.anchorWorldPosition.z
+            );
+
+            // Calculate offset needed
+            const offset = new THREE.Vector3().subVectors(
+              targetAnchorWorldPos,
+              currentAnchorWorldPos
+            );
+
+            // Apply offset to position the SVG correctly
+            rotationGroup.position.add(offset);
+          }
+          // If no anchor world position but there is a model position, use that
+          else if (viewState.model && viewState.model.position) {
+            rotationGroup.position.set(
+              viewState.model.position.x,
+              viewState.model.position.y,
+              viewState.model.position.z
+            );
+          }
+
+          // Apply scale if saved
           if (viewState.model && viewState.model.scale) {
             rotationGroup.scale.set(
               viewState.model.scale.x,
@@ -703,47 +765,7 @@ function loadSVG(url) {
             );
           }
 
-          // 3. Apply rotation (if any)
-          if (viewState.model && viewState.model.rotation) {
-            rotationGroup.rotation.set(
-              viewState.model.rotation.x,
-              viewState.model.rotation.y,
-              viewState.model.rotation.z
-            );
-            currentRotation = viewState.model.rotation.z || 0;
-          }
-
-          // 4. Now position based on saved anchor world position
-          if (viewState.handles.anchorWorldPosition) {
-            // Get current anchor position after applying scale and rotation
-            const currentAnchorPos = getAnchorWorldPosition();
-
-            // Get the target world position for anchor
-            const targetPos = new THREE.Vector3(
-              viewState.handles.anchorWorldPosition.x,
-              viewState.handles.anchorWorldPosition.y,
-              viewState.handles.anchorWorldPosition.z
-            );
-
-            // Calculate offset needed
-            const offset = new THREE.Vector3(
-              targetPos.x - currentAnchorPos.x,
-              targetPos.y - currentAnchorPos.y,
-              targetPos.z - currentAnchorPos.z
-            );
-
-            // Apply offset to position
-            rotationGroup.position.add(offset);
-          } else if (viewState.model && viewState.model.position) {
-            // If no saved anchor world position, use model position
-            rotationGroup.position.set(
-              viewState.model.position.x,
-              viewState.model.position.y,
-              viewState.model.position.z
-            );
-          }
-
-          // Apply camera settings
+          // Apply camera position and controls last
           if (viewState.camera) {
             if (viewState.camera.position) {
               camera.position.set(
@@ -781,81 +803,20 @@ function loadSVG(url) {
             }
             controls.update();
           }
-        } else {
-          // Default handling if no saved anchor point exists
-          setAnchorPoint(0.5, 0.5); // Default to center
 
-          // Apply basic transformations if available
-          if (viewState && viewState.model) {
-            if (viewState.model.scale) {
-              rotationGroup.scale.set(
-                viewState.model.scale.x,
-                viewState.model.scale.y,
-                viewState.model.scale.z
-              );
+          // Update handles visibility if needed
+          if (viewState.handles) {
+            if (viewState.handles.movementHandle && movementHandle) {
+              movementHandle.visible = viewState.handles.movementHandle.visible;
             }
-
-            if (viewState.model.rotation) {
-              rotationGroup.rotation.set(
-                viewState.model.rotation.x,
-                viewState.model.rotation.y,
-                viewState.model.rotation.z
-              );
-              currentRotation = viewState.model.rotation.z || 0;
-            }
-
-            if (viewState.model.position) {
-              rotationGroup.position.set(
-                viewState.model.position.x,
-                viewState.model.position.y,
-                viewState.model.position.z
-              );
+            if (viewState.handles.rotationHandle && rotationHandle) {
+              rotationHandle.visible = viewState.handles.rotationHandle.visible;
             }
           }
 
-          // Apply camera settings if available
-          if (viewState && viewState.camera) {
-            if (viewState.camera.position) {
-              camera.position.set(
-                viewState.camera.position.x,
-                viewState.camera.position.y,
-                viewState.camera.position.z
-              );
-            }
-
-            if (viewState.camera.rotation) {
-              if (viewState.camera.rotation.order) {
-                camera.rotation.order = viewState.camera.rotation.order;
-              }
-              camera.rotation.set(
-                viewState.camera.rotation.x,
-                viewState.camera.rotation.y,
-                viewState.camera.rotation.z
-              );
-            }
-
-            if (viewState.camera.zoom !== undefined) {
-              camera.zoom = viewState.camera.zoom;
-            }
-
-            camera.updateProjectionMatrix();
-          }
-
-          // Apply controls if available
-          if (viewState && viewState.controls && controls) {
-            if (viewState.controls.target) {
-              controls.target.set(
-                viewState.controls.target.x,
-                viewState.controls.target.y,
-                viewState.controls.target.z
-              );
-            }
-            controls.update();
-          }
+          // Do one last anchor position check to ensure perfect positioning
+          updateAnchorMarkerPosition();
         }
-
-        // Final update of the anchor marker's visual position
-        updateAnchorMarkerPosition();
       } else {
         console.error("No valid objects found in SVG");
       }
@@ -1024,23 +985,21 @@ function setupRotationControls() {
     // Calculate new rotation angle
     const newRotation = initialAngle + adjustedAngle;
 
-    // Get the anchor point's current world position
-    const anchorWorldBefore = getAnchorWorldPosition();
+    // Store the current position of anchor point in world space
+    const anchorBeforeRotation = getAnchorWorldPosition();
 
     // Apply new rotation
     rotationGroup.rotation.z = newRotation;
     currentRotation = newRotation;
 
-    // Get anchor position after rotation
-    const anchorWorldAfter = getAnchorWorldPosition();
+    // Get anchor point position after rotation
+    const anchorAfterRotation = getAnchorWorldPosition();
 
-    // Calculate the offset needed to keep the anchor in the same world position
+    // Calculate the difference and adjust position to keep anchor point fixed
     const delta = new THREE.Vector3().subVectors(
-      anchorWorldBefore,
-      anchorWorldAfter
+      anchorBeforeRotation,
+      anchorAfterRotation
     );
-
-    // Apply the offset to keep the anchor point fixed in world space
     rotationGroup.position.add(delta);
   });
 
@@ -1247,11 +1206,8 @@ function saveCurrentState() {
     };
   }
 
-  // Get the current anchor world position using improved function
+  // Get the current anchor world position
   const anchorWorldPos = getAnchorWorldPosition();
-
-  // Log the anchor position for debugging
-  console.log("Saving anchor world position:", anchorWorldPos);
 
   // Save handle positions and current rotation
   const handlesState = {
@@ -1493,34 +1449,21 @@ function getAnchorWorldPosition() {
 
   // Calculate bounding box of SVG
   const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const size = bbox.getSize(new THREE.Vector3());
+  const svgSize = bbox.getSize(new THREE.Vector3());
 
-  // Get the anchor position in local coordinates
-  const localX = (anchorPoint.x - 0.5) * size.x;
-  const localY = (anchorPoint.y - 0.5) * size.y;
+  // Get the anchor position in local coordinates of the SVG
+  const localX = (anchorPoint.x - 0.5) * svgSize.x;
+  const localY = (anchorPoint.y - 0.5) * svgSize.y;
 
-  // Create a point in local space
-  let worldPos = new THREE.Vector3(localX, localY, 0);
+  // Create a vector for local position
+  const localPos = new THREE.Vector3(localX, localY, 0);
 
-  // Apply rotationGroup's transformations manually in the correct order
+  // Create a world position vector
+  const worldPos = localPos.clone();
 
-  // 1. Apply SVG position (if centered, this might be zero)
-  worldPos.add(svgGroup.position);
-
-  // 2. Apply rotation
-  if (rotationGroup.rotation.z !== 0) {
-    const rotMatrix = new THREE.Matrix4().makeRotationZ(
-      rotationGroup.rotation.z
-    );
-    worldPos.applyMatrix4(rotMatrix);
-  }
-
-  // 3. Apply scale
-  worldPos.x *= rotationGroup.scale.x;
-  worldPos.y *= rotationGroup.scale.y;
-
-  // 4. Apply rotation group position
-  worldPos.add(rotationGroup.position);
+  // Apply the full transformation matrix to get world coordinates
+  // This handles all transformations (position, rotation, scale) at once
+  worldPos.applyMatrix4(rotationGroup.matrixWorld);
 
   return worldPos;
 }
