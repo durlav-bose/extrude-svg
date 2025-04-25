@@ -1311,7 +1311,7 @@ function setupHandles(viewState) {
     console.log("Current anchor world pos:", getAnchorWorldPosition());
 
     // Update anchor marker
-    updateAnchorMarkerPosition();
+    // updateAnchorMarkerPosition();
   });
 
   rotationControls.addEventListener("dragend", () => {
@@ -1663,8 +1663,6 @@ function setupClickToSetAnchorPoint() {
 
     // Find intersections with SVG group
     const intersects = raycaster.intersectObjects(svgGroup.children, true);
-
-    console.log("intersects :>> ", intersects);
 
     // If we found an intersection
     if (intersects.length > 0) {
