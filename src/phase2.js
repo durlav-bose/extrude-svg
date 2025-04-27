@@ -1642,76 +1642,166 @@ function applyHandlesState(handlesState) {
 }
 
 // Add this function to handle clicks on the model
+// function setupClickToSetAnchorPoint() {
+//   // Create raycaster for mouse interaction
+//   const raycaster = new THREE.Raycaster();
+//   const mouse = new THREE.Vector2();
+
+//   // Add click event listener
+//   renderer.domElement.addEventListener("click", function (event) {
+//     // Check if Shift key is pressed (optional - use this if you want to require Shift+Click)
+//     // If you want to allow any click to set anchor point, remove this condition
+//     if (!event.shiftKey) return;
+
+//     // Calculate mouse position in normalized device coordinates
+//     // (-1 to +1) for both components
+//     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+//     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+//     // Set raycaster from camera to mouse position
+//     raycaster.setFromCamera(mouse, camera);
+
+//     // Find intersections with SVG group
+//     const intersects = raycaster.intersectObjects(svgGroup.children, true);
+
+//     // If we found an intersection
+//     if (intersects.length > 0) {
+//       // Get the first intersected object
+//       const intersect = intersects[0];
+
+//       // Calculate local point coordinates within the object
+//       const localPoint = intersect.point.clone();
+//       // Convert to local space of rotation group
+//       rotationGroup.worldToLocal(localPoint);
+
+//       // Calculate bounding box of SVG
+//       const bbox = new THREE.Box3().setFromObject(svgGroup);
+//       const size = bbox.getSize(new THREE.Vector3());
+//       const center = bbox.getCenter(new THREE.Vector3());
+
+//       // Calculate normalized coordinates (0-1) relative to bounding box
+//       const normalizedX = (localPoint.x - (center.x - size.x / 2)) / size.x;
+//       const normalizedY = (localPoint.y - (center.y - size.y / 2)) / size.y;
+
+//       // Set anchor point
+//       setAnchorPoint(normalizedX, normalizedY);
+
+//       // Display notification (optional)
+//       console.log(
+//         `Anchor point set at ${normalizedX.toFixed(2)}, ${normalizedY.toFixed(
+//           2
+//         )}`
+//       );
+
+//       // You could add a visual notification here if desired
+//       const notification = document.createElement("div");
+//       notification.textContent = "Anchor point set!";
+//       notification.style.position = "absolute";
+//       notification.style.bottom = "20px";
+//       notification.style.left = "50%";
+//       notification.style.transform = "translateX(-50%)";
+//       notification.style.backgroundColor = "rgba(0,0,0,0.7)";
+//       notification.style.color = "white";
+//       notification.style.padding = "10px 20px";
+//       notification.style.borderRadius = "5px";
+//       notification.style.fontFamily = "Arial, sans-serif";
+//       notification.style.zIndex = "1000";
+//       document.body.appendChild(notification);
+
+//       // Remove notification after 2 seconds
+//       setTimeout(() => {
+//         document.body.removeChild(notification);
+//       }, 2000);
+//     }
+//   });
+// }
+
 function setupClickToSetAnchorPoint() {
   // Create raycaster for mouse interaction
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
   // Add click event listener
-  renderer.domElement.addEventListener("click", function (event) {
-    // Check if Shift key is pressed (optional - use this if you want to require Shift+Click)
-    // If you want to allow any click to set anchor point, remove this condition
-    if (!event.shiftKey) return;
+  renderer.domElement.addEventListener("click", function(event) {
+    // Calculate mouse position in normalized device coordinates (-1 to +1)
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-    // Calculate mouse position in normalized device coordinates
-    // (-1 to +1) for both components
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    console.log('Mouse position:', mouse.x, mouse.y);
+    console.log('Camera position:', camera.position);
+    
+    // Check if svgGroup exists and has children
+    if (!svgGroup || !svgGroup.children || svgGroup.children.length === 0) {
+      console.log('SVG group is empty or not initialized');
+      return;
+    }
+    
+    console.log('SVG group children count:', svgGroup.children.length);
 
     // Set raycaster from camera to mouse position
     raycaster.setFromCamera(mouse, camera);
+    
+    // Log the raycaster's ray direction for debugging
+    console.log('Raycaster direction:', raycaster.ray.direction);
 
-    // Find intersections with SVG group
+    // Try intersecting with ALL objects in the scene first to debug
+    const allObjects = [];
+    scene.traverse(function(object) {
+      if (object.isMesh) {
+        allObjects.push(object);
+      }
+    });
+    
+    const allIntersects = raycaster.intersectObjects(allObjects, false);
+    console.log('All intersects:', allIntersects);
+
+    // Now try with just the SVG group children
     const intersects = raycaster.intersectObjects(svgGroup.children, true);
+    console.log('SVG intersects:', intersects);
 
-    // If we found an intersection
+    // If we found an intersection with SVG objects
     if (intersects.length > 0) {
-      // Get the first intersected object
+      // Process intersection as before...
       const intersect = intersects[0];
-
-      // Calculate local point coordinates within the object
-      const localPoint = intersect.point.clone();
-      // Convert to local space of rotation group
+      const point = intersect.point.clone();
+      
+      console.log('Intersection point:', point);
+      
+      // Convert world point to local SVG space
+      const localPoint = point.clone();
       rotationGroup.worldToLocal(localPoint);
-
-      // Calculate bounding box of SVG
+      
+      // Get SVG bounds
       const bbox = new THREE.Box3().setFromObject(svgGroup);
       const size = bbox.getSize(new THREE.Vector3());
-      const center = bbox.getCenter(new THREE.Vector3());
-
-      // Calculate normalized coordinates (0-1) relative to bounding box
-      const normalizedX = (localPoint.x - (center.x - size.x / 2)) / size.x;
-      const normalizedY = (localPoint.y - (center.y - size.y / 2)) / size.y;
-
-      // Set anchor point
+      const min = bbox.min;
+      
+      console.log('SVG bounds:', min, size);
+      
+      // Calculate normalized coordinates (0-1)
+      const normalizedX = (localPoint.x - min.x) / size.x;
+      const normalizedY = (localPoint.y - min.y) / size.y;
+      
+      console.log('Normalized coordinates:', normalizedX, normalizedY);
+      
+      // Set the anchor point
       setAnchorPoint(normalizedX, normalizedY);
-
-      // Display notification (optional)
-      console.log(
-        `Anchor point set at ${normalizedX.toFixed(2)}, ${normalizedY.toFixed(
-          2
-        )}`
-      );
-
-      // You could add a visual notification here if desired
-      const notification = document.createElement("div");
-      notification.textContent = "Anchor point set!";
-      notification.style.position = "absolute";
-      notification.style.bottom = "20px";
-      notification.style.left = "50%";
-      notification.style.transform = "translateX(-50%)";
-      notification.style.backgroundColor = "rgba(0,0,0,0.7)";
-      notification.style.color = "white";
-      notification.style.padding = "10px 20px";
-      notification.style.borderRadius = "5px";
-      notification.style.fontFamily = "Arial, sans-serif";
-      notification.style.zIndex = "1000";
-      document.body.appendChild(notification);
-
-      // Remove notification after 2 seconds
-      setTimeout(() => {
-        document.body.removeChild(notification);
-      }, 2000);
+      
+      // Show a visual confirmation
+      // showAnchorPointConfirmation();
+    } else {
+      console.log('No intersection with SVG found');
+      
+      // Debug by checking if meshes have proper geometry and materials
+      svgGroup.traverse(function(child) {
+        if (child.isMesh) {
+          console.log('SVG mesh:', child);
+          console.log('  - visible:', child.visible);
+          console.log('  - geometry vertices:', child.geometry.attributes.position.count);
+          console.log('  - matrixWorld:', child.matrixWorld);
+        }
+      });
     }
   });
 }
