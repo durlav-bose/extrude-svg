@@ -15,6 +15,9 @@ let backgroundColor = null;
 const scene = new THREE.Scene();
 // scene.background = new THREE.Color(0x111111);
 
+let anchorWorldPosition = new THREE.Vector3(); // Global
+let anchorLocalPosition = new THREE.Vector3();
+
 // Camera setup
 const cameraHeight = 850;
 const halfCameraHeight = cameraHeight / 2;
@@ -251,72 +254,29 @@ function createAnchorMarker() {
 }
 
 function scaleAroundAnchorPoint(scaleFactor) {
-  if (!rotationGroup || !svgGroup) return;
+  if (!rotationGroup) return;
 
-  // 1. Get the bounding box of the SVG group
-  const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const size = bbox.getSize(new THREE.Vector3());
+  const anchorWorldBefore = anchorLocalPosition.clone();
+  rotationGroup.localToWorld(anchorWorldBefore);
 
-  // 2. Get the anchor offset in local space
-  const anchorLocal = new THREE.Vector3(
-    (anchorPoint.x - 0.5) * size.x,
-    (anchorPoint.y - 0.5) * size.y,
-    0
-  );
-
-  // 3. Rotate this offset according to current rotation
-  const rotationMatrix = new THREE.Matrix4().makeRotationZ(
-    rotationGroup.rotation.z
-  );
-  const rotatedAnchorOffset = anchorLocal.clone().applyMatrix4(rotationMatrix);
-
-  // 4. Calculate world anchor point before scaling
-  const worldAnchor = rotationGroup.position.clone().add(rotatedAnchorOffset);
-
-  // 5. Apply the scale
   rotationGroup.scale.multiplyScalar(scaleFactor);
 
-  // 6. Recalculate anchor offset after scaling
-  const newAnchorLocal = anchorLocal.clone().multiplyScalar(scaleFactor);
-  const newRotatedAnchorOffset = newAnchorLocal
-    .clone()
-    .applyMatrix4(rotationMatrix);
+  const anchorWorldAfter = anchorLocalPosition.clone();
+  rotationGroup.localToWorld(anchorWorldAfter);
 
-  // 7. Recalculate new world anchor position
-  const newWorldAnchor = rotationGroup.position
-    .clone()
-    .add(newRotatedAnchorOffset);
-
-  // 8. Move the rotation group to keep the world anchor fixed
-  const adjustment = new THREE.Vector3().subVectors(
-    worldAnchor,
-    newWorldAnchor
+  const shift = new THREE.Vector3().subVectors(
+    anchorWorldBefore,
+    anchorWorldAfter
   );
-  rotationGroup.position.add(adjustment);
+  rotationGroup.position.add(shift);
 
-  // 9. Update anchor marker
   updateAnchorMarkerPosition();
 }
 
 function updateAnchorMarkerPosition() {
-  if (!anchorMarker || !svgGroup || !rotationGroup) return;
+  if (!anchorMarker || !rotationGroup) return;
 
-  // Get the bounding box of the svgGroup in WORLD space
-  const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const size = bbox.getSize(new THREE.Vector3());
-
-  // Calculate the anchor in world space
-  const anchorWorld = new THREE.Vector3(
-    bbox.min.x + size.x * anchorPoint.x,
-    bbox.min.y + size.y * anchorPoint.y,
-    0
-  );
-
-  // Convert this world position to rotationGroup's local space
-  rotationGroup.worldToLocal(anchorWorld);
-
-  // Set anchorMarker position (local to rotationGroup)
-  anchorMarker.position.copy(anchorWorld);
+  anchorMarker.position.copy(anchorLocalPosition);
 }
 
 function setAnchorPoint(x, y) {
@@ -1106,13 +1066,229 @@ function loadSVG(url) {
   );
 }
 
-function setupHandles(viewState) {
-  // Delete existing handles if they exist
+// function setupHandles(viewState) {
+//   // Delete existing handles if they exist
+//   if (movementHandle) {
+//     scene.remove(movementHandle);
+//     movementHandle = null;
+//   }
+
+//   if (rotationHandle) {
+//     if (rotationHandle.parent) {
+//       rotationHandle.parent.remove(rotationHandle);
+//     }
+//     rotationHandle = null;
+//   }
+
+//   // Calculate bounding box of SVG
+//   const bbox = new THREE.Box3().setFromObject(svgGroup);
+//   const svgSize = bbox.getSize(new THREE.Vector3());
+//   const svgWidth = svgSize.x;
+//   const svgHeight = svgSize.y;
+
+//   if (!pendingHandlesState && !viewState) {
+//     // Get center position in world coordinates
+//     const svgCenter = bbox.getCenter(new THREE.Vector3());
+//     svgGroup.position.sub(svgCenter);
+
+//     // Position the rotation group at the center of the viewport
+//     rotationGroup.position.set(0, 0, 0);
+//   } else {
+//     // If we have a saved state, still center the SVG within itself
+//     // but don't reset the rotation group position
+//     const svgCenter = bbox.getCenter(new THREE.Vector3());
+//     svgGroup.position.sub(svgCenter);
+//   }
+
+//   // Create movement handle and add to scene (not to rotation group)
+//   movementHandle = createMovementHandle();
+//   scene.add(movementHandle);
+
+//   // Initial position at the same position as rotation group center
+//   movementHandle.position.copy(rotationGroup.position);
+//   movementHandle.position.z = 5; // Slightly in front
+
+//   // Create rotation handle - add it directly to the scene
+//   rotationHandle = createRotationHandle();
+//   scene.add(rotationHandle);
+
+//   // Position rotation handle at the edge of the SVG
+//   const handleOffset = {
+//     x: svgWidth / 2 + 20,
+//     y: svgHeight / 2 + 20,
+//   };
+
+//   // Calculate rotation handle position in world space
+//   const rotHandlePos = new THREE.Vector3(handleOffset.x, handleOffset.y, 5);
+//   // Apply rotation group's transform to get world position
+//   rotHandlePos.applyMatrix4(rotationGroup.matrixWorld);
+//   rotationHandle.position.copy(rotHandlePos);
+
+//   // Create and add anchor marker
+//   if (!anchorMarker) {
+//     anchorMarker = createAnchorMarker();
+//   }
+
+//   // Remove from scene if it exists
+//   if (anchorMarker.parent) {
+//     anchorMarker.parent.remove(anchorMarker);
+//   }
+
+//   // Add to rotation group
+//   rotationGroup.add(anchorMarker);
+
+//   // Update position
+//   updateAnchorMarkerPosition();
+
+//   // Restore from saved state if available
+//   if (pendingHandlesState && pendingHandlesState.anchorPoint) {
+//     setAnchorPoint(
+//       pendingHandlesState.anchorPoint.x,
+//       pendingHandlesState.anchorPoint.y
+//     );
+//   }
+
+//   // Setup drag controls for movement handle
+//   const movementControls = new THREE.DragControls(
+//     [movementHandle],
+//     camera,
+//     renderer.domElement
+//   );
+
+//   movementControls.addEventListener("dragstart", (event) => {
+//     controls.enabled = false;
+//   });
+
+//   movementControls.addEventListener("drag", (event) => {
+//     // Simply make the rotation group follow the movement handle
+//     rotationGroup.position.x = event.object.position.x;
+//     rotationGroup.position.y = event.object.position.y;
+//   });
+
+//   movementControls.addEventListener("dragend", () => {
+//     controls.enabled = true;
+//   });
+
+//   // Setup separate drag controls for rotation handle
+//   const rotationControls = new THREE.DragControls(
+//     [rotationHandle],
+//     camera,
+//     renderer.domElement
+//   );
+
+//   // Keep track of initial positions and angles
+//   let initialAngle = 0;
+//   let initialHandlePos = new THREE.Vector3();
+//   let rotationSensitivity = 0.3;
+//   let rotationStartPoint = new THREE.Vector3();
+//   let worldAnchorPoint = new THREE.Vector3();
+
+//   rotationControls.addEventListener("dragstart", (event) => {
+//     controls.enabled = false;
+//     initialAngle = currentRotation;
+//     initialHandlePos.copy(event.object.position);
+
+//     // Store the current SVG size at drag start
+//     const bbox = new THREE.Box3().setFromObject(svgGroup);
+//     dragSvgSize = bbox.getSize(new THREE.Vector3());
+
+//     // Calculate anchor point in local space
+//     const anchorLocal = new THREE.Vector3(
+//       (anchorPoint.x - 0.5) * dragSvgSize.x,
+//       (anchorPoint.y - 0.5) * dragSvgSize.y,
+//       0
+//     );
+
+//     // Store the initial world position of the anchor point
+//     const rotMatrix = new THREE.Matrix4().makeRotationZ(
+//       rotationGroup.rotation.z
+//     );
+//     const rotatedAnchor = anchorLocal.clone().applyMatrix4(rotMatrix);
+
+//     // This is the world position of the anchor point at drag start
+//     worldAnchorPoint = rotationGroup.position.clone().add(rotatedAnchor);
+
+//     console.log("Drag start - Anchor world position:", worldAnchorPoint);
+//   });
+
+//   rotationControls.addEventListener("drag", (event) => {
+//     // Calculate angle change based on vectors from anchor to handle
+//     const initialVec = new THREE.Vector2(
+//       initialHandlePos.x - worldAnchorPoint.x,
+//       initialHandlePos.y - worldAnchorPoint.y
+//     );
+
+//     const currentVec = new THREE.Vector2(
+//       event.object.position.x - worldAnchorPoint.x,
+//       event.object.position.y - worldAnchorPoint.y
+//     );
+
+//     const dot = initialVec.dot(currentVec);
+//     const det = initialVec.x * currentVec.y - initialVec.y * currentVec.x;
+//     const angleChange = Math.atan2(det, dot);
+//     const newRotation = initialAngle + angleChange;
+
+//     // ---- Start: Exactly the same logic as in scaleAroundAnchorPoint ----
+//     // 1. Calculate anchor point in local space using size from drag start
+//     const anchorLocal = new THREE.Vector3(
+//       (anchorPoint.x - 0.5) * dragSvgSize.x,
+//       (anchorPoint.y - 0.5) * dragSvgSize.y,
+//       0
+//     );
+
+//     // 2. Calculate current world position of anchor with current rotation
+//     const currentRotMatrix = new THREE.Matrix4().makeRotationZ(
+//       rotationGroup.rotation.z
+//     );
+//     const currentRotatedAnchor = anchorLocal
+//       .clone()
+//       .applyMatrix4(currentRotMatrix);
+//     const currentWorldAnchor = rotationGroup.position
+//       .clone()
+//       .add(currentRotatedAnchor);
+
+//     // 3. Apply new rotation
+//     rotationGroup.rotation.z = newRotation;
+//     currentRotation = newRotation;
+
+//     // 4. Calculate new world position of anchor after rotation change
+//     const newRotMatrix = new THREE.Matrix4().makeRotationZ(newRotation);
+//     const newRotatedAnchor = anchorLocal.clone().applyMatrix4(newRotMatrix);
+//     const newWorldAnchor = rotationGroup.position.clone().add(newRotatedAnchor);
+
+//     // 5. Calculate adjustment needed to maintain anchor world position
+//     const adjustment = new THREE.Vector3().subVectors(
+//       currentWorldAnchor, // This should match worldAnchorPoint from dragstart
+//       newWorldAnchor
+//     );
+
+//     // 6. Apply adjustment to rotation group position
+//     rotationGroup.position.add(adjustment);
+//     // ---- End: Logic from scaleAroundAnchorPoint ----
+
+//     // Debug the positions
+//     console.log("Anchor should be at:", worldAnchorPoint);
+//     console.log("Current anchor world pos:", getAnchorWorldPosition());
+
+//     // Update anchor marker
+//     // updateAnchorMarkerPosition();
+//   });
+
+//   rotationControls.addEventListener("dragend", () => {
+//     controls.enabled = true;
+//   });
+
+//   if (pendingHandlesState) {
+//     applyHandlesState(pendingHandlesState);
+//     pendingHandlesState = null;
+//   }
+// }
+
+function setupHandles() {
   if (movementHandle) {
     scene.remove(movementHandle);
     movementHandle = null;
   }
-
   if (rotationHandle) {
     if (rotationHandle.parent) {
       rotationHandle.parent.remove(rotationHandle);
@@ -1120,107 +1296,66 @@ function setupHandles(viewState) {
     rotationHandle = null;
   }
 
-  // Calculate bounding box of SVG
-  const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const svgSize = bbox.getSize(new THREE.Vector3());
-  const svgWidth = svgSize.x;
-  const svgHeight = svgSize.y;
-
-  if (!pendingHandlesState && !viewState) {
-    // Get center position in world coordinates
-    const svgCenter = bbox.getCenter(new THREE.Vector3());
-    svgGroup.position.sub(svgCenter);
-
-    // Position the rotation group at the center of the viewport
-    rotationGroup.position.set(0, 0, 0);
-  } else {
-    // If we have a saved state, still center the SVG within itself
-    // but don't reset the rotation group position
-    const svgCenter = bbox.getCenter(new THREE.Vector3());
-    svgGroup.position.sub(svgCenter);
-  }
-
-  // Create movement handle and add to scene (not to rotation group)
+  // Create movement handle
   movementHandle = createMovementHandle();
   scene.add(movementHandle);
-
-  // Initial position at the same position as rotation group center
   movementHandle.position.copy(rotationGroup.position);
-  movementHandle.position.z = 5; // Slightly in front
+  movementHandle.position.z = 5;
 
-  // Create rotation handle - add it directly to the scene
+  // Create rotation handle
   rotationHandle = createRotationHandle();
   scene.add(rotationHandle);
-
-  // Position rotation handle at the edge of the SVG
-  const handleOffset = {
-    x: svgWidth / 2 + 20,
-    y: svgHeight / 2 + 20,
-  };
-
-  // Calculate rotation handle position in world space
-  const rotHandlePos = new THREE.Vector3(handleOffset.x, handleOffset.y, 5);
-  // Apply rotation group's transform to get world position
-  rotHandlePos.applyMatrix4(rotationGroup.matrixWorld);
-  rotationHandle.position.copy(rotHandlePos);
+  positionRotationHandle();
 
   // Create and add anchor marker
   if (!anchorMarker) {
     anchorMarker = createAnchorMarker();
+    rotationGroup.add(anchorMarker);
   }
-
-  // Remove from scene if it exists
-  if (anchorMarker.parent) {
-    anchorMarker.parent.remove(anchorMarker);
-  }
-
-  // Add to rotation group
-  rotationGroup.add(anchorMarker);
-
-  // Update position
   updateAnchorMarkerPosition();
 
-  // Restore from saved state if available
-  if (pendingHandlesState && pendingHandlesState.anchorPoint) {
-    setAnchorPoint(
-      pendingHandlesState.anchorPoint.x,
-      pendingHandlesState.anchorPoint.y
-    );
-  }
-
-  // Setup drag controls for movement handle
-  const movementControls = new THREE.DragControls(
+  // Setup drag for movement
+  const moveControls = new THREE.DragControls(
     [movementHandle],
     camera,
     renderer.domElement
   );
-
-  movementControls.addEventListener("dragstart", (event) => {
-    controls.enabled = false;
-  });
-
-  movementControls.addEventListener("drag", (event) => {
-    // Simply make the rotation group follow the movement handle
+  moveControls.addEventListener("dragstart", () => (controls.enabled = false));
+  moveControls.addEventListener("drag", (event) => {
     rotationGroup.position.x = event.object.position.x;
     rotationGroup.position.y = event.object.position.y;
   });
+  moveControls.addEventListener("dragend", () => (controls.enabled = true));
 
-  movementControls.addEventListener("dragend", () => {
-    controls.enabled = true;
-  });
+  // Setup drag for rotation
+  setupRotationDrag();
+}
 
-  // Setup separate drag controls for rotation handle
+function positionRotationHandle() {
+  if (!rotationHandle || !rotationGroup || !svgGroup) return;
+
+  const bbox = new THREE.Box3().setFromObject(svgGroup);
+  const size = bbox.getSize(new THREE.Vector3());
+
+  const localOffset = new THREE.Vector3(size.x / 2 + 20, size.y / 2 + 20, 5);
+  const rotatedOffset = localOffset.applyMatrix4(
+    new THREE.Matrix4().makeRotationZ(rotationGroup.rotation.z)
+  );
+
+  rotationHandle.position.copy(
+    rotationGroup.position.clone().add(rotatedOffset)
+  );
+}
+
+function setupRotationDrag() {
   const rotationControls = new THREE.DragControls(
     [rotationHandle],
     camera,
     renderer.domElement
   );
 
-  // Keep track of initial positions and angles
   let initialAngle = 0;
   let initialHandlePos = new THREE.Vector3();
-  let rotationSensitivity = 0.3;
-  let rotationStartPoint = new THREE.Vector3();
   let worldAnchorPoint = new THREE.Vector3();
 
   rotationControls.addEventListener("dragstart", (event) => {
@@ -1228,36 +1363,15 @@ function setupHandles(viewState) {
     initialAngle = currentRotation;
     initialHandlePos.copy(event.object.position);
 
-    // Store the current SVG size at drag start
-    const bbox = new THREE.Box3().setFromObject(svgGroup);
-    dragSvgSize = bbox.getSize(new THREE.Vector3());
-
-    // Calculate anchor point in local space
-    const anchorLocal = new THREE.Vector3(
-      (anchorPoint.x - 0.5) * dragSvgSize.x,
-      (anchorPoint.y - 0.5) * dragSvgSize.y,
-      0
-    );
-
-    // Store the initial world position of the anchor point
-    const rotMatrix = new THREE.Matrix4().makeRotationZ(
-      rotationGroup.rotation.z
-    );
-    const rotatedAnchor = anchorLocal.clone().applyMatrix4(rotMatrix);
-
-    // This is the world position of the anchor point at drag start
-    worldAnchorPoint = rotationGroup.position.clone().add(rotatedAnchor);
-
-    console.log("Drag start - Anchor world position:", worldAnchorPoint);
+    worldAnchorPoint = anchorLocalPosition.clone();
+    rotationGroup.localToWorld(worldAnchorPoint);
   });
 
   rotationControls.addEventListener("drag", (event) => {
-    // Calculate angle change based on vectors from anchor to handle
     const initialVec = new THREE.Vector2(
       initialHandlePos.x - worldAnchorPoint.x,
       initialHandlePos.y - worldAnchorPoint.y
     );
-
     const currentVec = new THREE.Vector2(
       event.object.position.x - worldAnchorPoint.x,
       event.object.position.y - worldAnchorPoint.y
@@ -1266,62 +1380,28 @@ function setupHandles(viewState) {
     const dot = initialVec.dot(currentVec);
     const det = initialVec.x * currentVec.y - initialVec.y * currentVec.x;
     const angleChange = Math.atan2(det, dot);
+
     const newRotation = initialAngle + angleChange;
 
-    // ---- Start: Exactly the same logic as in scaleAroundAnchorPoint ----
-    // 1. Calculate anchor point in local space using size from drag start
-    const anchorLocal = new THREE.Vector3(
-      (anchorPoint.x - 0.5) * dragSvgSize.x,
-      (anchorPoint.y - 0.5) * dragSvgSize.y,
-      0
-    );
+    const anchorWorldBefore = anchorLocalPosition.clone();
+    rotationGroup.localToWorld(anchorWorldBefore);
 
-    // 2. Calculate current world position of anchor with current rotation
-    const currentRotMatrix = new THREE.Matrix4().makeRotationZ(
-      rotationGroup.rotation.z
-    );
-    const currentRotatedAnchor = anchorLocal
-      .clone()
-      .applyMatrix4(currentRotMatrix);
-    const currentWorldAnchor = rotationGroup.position
-      .clone()
-      .add(currentRotatedAnchor);
-
-    // 3. Apply new rotation
     rotationGroup.rotation.z = newRotation;
     currentRotation = newRotation;
 
-    // 4. Calculate new world position of anchor after rotation change
-    const newRotMatrix = new THREE.Matrix4().makeRotationZ(newRotation);
-    const newRotatedAnchor = anchorLocal.clone().applyMatrix4(newRotMatrix);
-    const newWorldAnchor = rotationGroup.position.clone().add(newRotatedAnchor);
+    const anchorWorldAfter = anchorLocalPosition.clone();
+    rotationGroup.localToWorld(anchorWorldAfter);
 
-    // 5. Calculate adjustment needed to maintain anchor world position
-    const adjustment = new THREE.Vector3().subVectors(
-      currentWorldAnchor, // This should match worldAnchorPoint from dragstart
-      newWorldAnchor
+    const shift = new THREE.Vector3().subVectors(
+      anchorWorldBefore,
+      anchorWorldAfter
     );
+    rotationGroup.position.add(shift);
 
-    // 6. Apply adjustment to rotation group position
-    rotationGroup.position.add(adjustment);
-    // ---- End: Logic from scaleAroundAnchorPoint ----
-
-    // Debug the positions
-    console.log("Anchor should be at:", worldAnchorPoint);
-    console.log("Current anchor world pos:", getAnchorWorldPosition());
-
-    // Update anchor marker
-    // updateAnchorMarkerPosition();
+    updateAnchorMarkerPosition();
   });
 
-  rotationControls.addEventListener("dragend", () => {
-    controls.enabled = true;
-  });
-
-  if (pendingHandlesState) {
-    applyHandlesState(pendingHandlesState);
-    pendingHandlesState = null;
-  }
+  rotationControls.addEventListener("dragend", () => (controls.enabled = true));
 }
 
 function createUIControls(svgGroup) {
@@ -1642,94 +1722,29 @@ function applyHandlesState(handlesState) {
 }
 
 function setupClickToSetAnchorPoint() {
-  // Create raycaster for mouse interaction
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
-  // Add click event listener
-  renderer.domElement.addEventListener("click", function (event) {
-    // Calculate mouse position in normalized device coordinates (-1 to +1)
+  renderer.domElement.addEventListener("click", (event) => {
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-    console.log("Mouse position:", mouse.x, mouse.y);
-    console.log("Camera position:", camera.position);
-
-    // Check if svgGroup exists and has children
-    if (!svgGroup || !svgGroup.children || svgGroup.children.length === 0) {
-      console.log("SVG group is empty or not initialized");
-      return;
-    }
-
-    console.log("SVG group children count:", svgGroup.children.length);
-
-    // Set raycaster from camera to mouse position
     raycaster.setFromCamera(mouse, camera);
 
-    // Log the raycaster's ray direction for debugging
-    console.log("Raycaster direction:", raycaster.ray.direction);
+    if (!svgGroup || !svgGroup.children.length) return;
 
-    // Try intersecting with ALL objects in the scene first to debug
-    const allObjects = [];
-    scene.traverse(function (object) {
-      if (object.isMesh) {
-        allObjects.push(object);
-      }
-    });
-
-    const allIntersects = raycaster.intersectObjects(allObjects, false);
-    console.log("All intersects:", allIntersects);
-
-    // Now try with just the SVG group children
     const intersects = raycaster.intersectObjects(svgGroup.children, true);
-    console.log("SVG intersects:", intersects);
 
-    // If we found an intersection with SVG objects
     if (intersects.length > 0) {
-      // Process intersection as before...
       const intersect = intersects[0];
-      const point = intersect.point.clone();
+      const worldPoint = intersect.point.clone();
 
-      console.log("Intersection point:", point);
+      const localPoint = rotationGroup.worldToLocal(worldPoint.clone());
 
-      // Convert world point to local SVG space
-      const localPoint = point.clone();
-      rotationGroup.worldToLocal(localPoint);
+      anchorLocalPosition.copy(localPoint);
 
-      // Get SVG bounds
-      const bbox = new THREE.Box3().setFromObject(svgGroup);
-      const size = bbox.getSize(new THREE.Vector3());
-      const min = bbox.min;
-
-      console.log("SVG bounds:", min, size);
-
-      // Calculate normalized coordinates (0-1)
-      const normalizedX = (localPoint.x - min.x) / size.x;
-      const normalizedY = (localPoint.y - min.y) / size.y;
-
-      console.log("Normalized coordinates:", normalizedX, normalizedY);
-
-      // Set the anchor point
-      setAnchorPoint(normalizedX, normalizedY);
-
-      // Show a visual confirmation
-      // showAnchorPointConfirmation();
-    } else {
-      console.log("No intersection with SVG found");
-
-      // Debug by checking if meshes have proper geometry and materials
-      svgGroup.traverse(function (child) {
-        if (child.isMesh) {
-          console.log("SVG mesh:", child);
-          console.log("  - visible:", child.visible);
-          console.log(
-            "  - geometry vertices:",
-            child.geometry.attributes.position.count
-          );
-          console.log("  - matrixWorld:", child.matrixWorld);
-        }
-      });
+      updateAnchorMarkerPosition();
     }
   });
 }

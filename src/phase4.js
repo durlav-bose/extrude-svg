@@ -15,6 +15,9 @@ let backgroundColor = null;
 const scene = new THREE.Scene();
 // scene.background = new THREE.Color(0x111111);
 
+let anchorWorldPosition = new THREE.Vector3(); // Global
+let anchorLocalPosition = new THREE.Vector3();
+
 // Camera setup
 const cameraHeight = 850;
 const halfCameraHeight = cameraHeight / 2;
@@ -251,72 +254,34 @@ function createAnchorMarker() {
 }
 
 function scaleAroundAnchorPoint(scaleFactor) {
-  if (!rotationGroup || !svgGroup) return;
+  if (!rotationGroup) return;
 
-  // 1. Get the bounding box of the SVG group
-  const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const size = bbox.getSize(new THREE.Vector3());
+  // 1. Calculate anchor's current world position
+  const anchorWorldBefore = anchorLocalPosition.clone();
+  rotationGroup.localToWorld(anchorWorldBefore);
 
-  // 2. Get the anchor offset in local space
-  const anchorLocal = new THREE.Vector3(
-    (anchorPoint.x - 0.5) * size.x,
-    (anchorPoint.y - 0.5) * size.y,
-    0
-  );
-
-  // 3. Rotate this offset according to current rotation
-  const rotationMatrix = new THREE.Matrix4().makeRotationZ(
-    rotationGroup.rotation.z
-  );
-  const rotatedAnchorOffset = anchorLocal.clone().applyMatrix4(rotationMatrix);
-
-  // 4. Calculate world anchor point before scaling
-  const worldAnchor = rotationGroup.position.clone().add(rotatedAnchorOffset);
-
-  // 5. Apply the scale
+  // 2. Apply scale
   rotationGroup.scale.multiplyScalar(scaleFactor);
 
-  // 6. Recalculate anchor offset after scaling
-  const newAnchorLocal = anchorLocal.clone().multiplyScalar(scaleFactor);
-  const newRotatedAnchorOffset = newAnchorLocal
-    .clone()
-    .applyMatrix4(rotationMatrix);
+  // 3. Calculate new anchor world position
+  const anchorWorldAfter = anchorLocalPosition.clone();
+  rotationGroup.localToWorld(anchorWorldAfter);
 
-  // 7. Recalculate new world anchor position
-  const newWorldAnchor = rotationGroup.position
-    .clone()
-    .add(newRotatedAnchorOffset);
-
-  // 8. Move the rotation group to keep the world anchor fixed
-  const adjustment = new THREE.Vector3().subVectors(
-    worldAnchor,
-    newWorldAnchor
+  // 4. Compute the shift needed to keep anchor in same place
+  const shift = new THREE.Vector3().subVectors(
+    anchorWorldBefore,
+    anchorWorldAfter
   );
-  rotationGroup.position.add(adjustment);
+  rotationGroup.position.add(shift);
 
-  // 9. Update anchor marker
   updateAnchorMarkerPosition();
 }
 
 function updateAnchorMarkerPosition() {
-  if (!anchorMarker || !svgGroup || !rotationGroup) return;
+  if (!anchorMarker || !rotationGroup) return;
 
-  // Get the bounding box of the svgGroup in WORLD space
-  const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const size = bbox.getSize(new THREE.Vector3());
-
-  // Calculate the anchor in world space
-  const anchorWorld = new THREE.Vector3(
-    bbox.min.x + size.x * anchorPoint.x,
-    bbox.min.y + size.y * anchorPoint.y,
-    0
-  );
-
-  // Convert this world position to rotationGroup's local space
-  rotationGroup.worldToLocal(anchorWorld);
-
-  // Set anchorMarker position (local to rotationGroup)
-  anchorMarker.position.copy(anchorWorld);
+  // anchorLocalPosition is already in local space
+  anchorMarker.position.copy(anchorLocalPosition);
 }
 
 function setAnchorPoint(x, y) {
@@ -1642,94 +1607,30 @@ function applyHandlesState(handlesState) {
 }
 
 function setupClickToSetAnchorPoint() {
-  // Create raycaster for mouse interaction
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
-  // Add click event listener
-  renderer.domElement.addEventListener("click", function (event) {
-    // Calculate mouse position in normalized device coordinates (-1 to +1)
+  renderer.domElement.addEventListener("click", (event) => {
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-    console.log("Mouse position:", mouse.x, mouse.y);
-    console.log("Camera position:", camera.position);
-
-    // Check if svgGroup exists and has children
-    if (!svgGroup || !svgGroup.children || svgGroup.children.length === 0) {
-      console.log("SVG group is empty or not initialized");
-      return;
-    }
-
-    console.log("SVG group children count:", svgGroup.children.length);
-
-    // Set raycaster from camera to mouse position
     raycaster.setFromCamera(mouse, camera);
 
-    // Log the raycaster's ray direction for debugging
-    console.log("Raycaster direction:", raycaster.ray.direction);
+    if (!svgGroup || !svgGroup.children.length) return;
 
-    // Try intersecting with ALL objects in the scene first to debug
-    const allObjects = [];
-    scene.traverse(function (object) {
-      if (object.isMesh) {
-        allObjects.push(object);
-      }
-    });
-
-    const allIntersects = raycaster.intersectObjects(allObjects, false);
-    console.log("All intersects:", allIntersects);
-
-    // Now try with just the SVG group children
     const intersects = raycaster.intersectObjects(svgGroup.children, true);
-    console.log("SVG intersects:", intersects);
 
-    // If we found an intersection with SVG objects
     if (intersects.length > 0) {
-      // Process intersection as before...
       const intersect = intersects[0];
-      const point = intersect.point.clone();
+      const worldPoint = intersect.point.clone();
 
-      console.log("Intersection point:", point);
+      // Transform worldPoint to local rotationGroup space
+      const localPoint = rotationGroup.worldToLocal(worldPoint.clone());
 
-      // Convert world point to local SVG space
-      const localPoint = point.clone();
-      rotationGroup.worldToLocal(localPoint);
+      anchorLocalPosition.copy(localPoint); // 🔥 Store as local anchor
 
-      // Get SVG bounds
-      const bbox = new THREE.Box3().setFromObject(svgGroup);
-      const size = bbox.getSize(new THREE.Vector3());
-      const min = bbox.min;
-
-      console.log("SVG bounds:", min, size);
-
-      // Calculate normalized coordinates (0-1)
-      const normalizedX = (localPoint.x - min.x) / size.x;
-      const normalizedY = (localPoint.y - min.y) / size.y;
-
-      console.log("Normalized coordinates:", normalizedX, normalizedY);
-
-      // Set the anchor point
-      setAnchorPoint(normalizedX, normalizedY);
-
-      // Show a visual confirmation
-      // showAnchorPointConfirmation();
-    } else {
-      console.log("No intersection with SVG found");
-
-      // Debug by checking if meshes have proper geometry and materials
-      svgGroup.traverse(function (child) {
-        if (child.isMesh) {
-          console.log("SVG mesh:", child);
-          console.log("  - visible:", child.visible);
-          console.log(
-            "  - geometry vertices:",
-            child.geometry.attributes.position.count
-          );
-          console.log("  - matrixWorld:", child.matrixWorld);
-        }
-      });
+      updateAnchorMarkerPosition();
     }
   });
 }
