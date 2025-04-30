@@ -303,6 +303,82 @@ function loadSVG(url) {
   );
 }
 
+// function applySavedStateToNewSVG(newSvgGroup) {
+//   const savedStateJSON = localStorage.getItem("svgViewState");
+//   if (!savedStateJSON) {
+//     console.warn("No saved state found");
+//     return;
+//   }
+
+//   try {
+//     const savedState = JSON.parse(savedStateJSON);
+
+//     // IMPORTANT: First center the new SVG within its group
+//     const newBbox = new THREE.Box3().setFromObject(newSvgGroup);
+//     const newCenter = newBbox.getCenter(new THREE.Vector3());
+//     newSvgGroup.position.sub(newCenter); // Center it properly
+
+//     // Recalculate the bounding box after centering
+//     const centeredBbox = new THREE.Box3().setFromObject(newSvgGroup);
+//     const newSize = centeredBbox.getSize(new THREE.Vector3());
+
+//     // Set rotation first (important for correct positioning)
+//     rotationGroup.rotation.z = savedState.rotation;
+//     currentRotation = savedState.rotation;
+
+//     // Set scale (preserve the saved scale factor)
+//     rotationGroup.scale.set(
+//       savedState.scale,
+//       savedState.scale,
+//       savedState.scale
+//     );
+
+//     // Calculate the new anchor point position based on normalized coordinates
+//     // These are relative to the SVG's bounding box
+//     const newAnchorLocalX =
+//       (savedState.normalizedAnchorLocal.x - 0.5) * newSize.x;
+//     const newAnchorLocalY =
+//       (savedState.normalizedAnchorLocal.y - 0.5) * newSize.y;
+//     anchorLocalPosition.set(newAnchorLocalX, newAnchorLocalY, 0);
+
+//     // Update anchor marker position
+//     updateAnchorMarkerPosition();
+
+//     // Get the target world position for the anchor point (from saved state)
+//     const targetWorldAnchor = new THREE.Vector3(
+//       savedState.anchorWorldPosition.x,
+//       savedState.anchorWorldPosition.y,
+//       savedState.anchorWorldPosition.z
+//     );
+
+//     // Position the rotationGroup so that the anchor point matches the target world position
+//     // First, get what would be the current world position of the anchor
+//     const currentAnchorWorld = anchorLocalPosition.clone();
+//     rotationGroup.localToWorld(currentAnchorWorld);
+
+//     // Calculate the difference
+//     const offset = new THREE.Vector3().subVectors(
+//       targetWorldAnchor,
+//       currentAnchorWorld
+//     );
+
+//     // Apply the offset to position the group correctly
+//     rotationGroup.position.add(offset);
+
+//     // Update handles
+//     if (movementHandle) {
+//       movementHandle.position.x = rotationGroup.position.x;
+//       movementHandle.position.y = rotationGroup.position.y;
+//     }
+
+//     positionRotationHandle();
+
+//     console.log("Applied saved state to new SVG");
+//   } catch (error) {
+//     console.error("Error applying saved state:", error);
+//   }
+// }
+
 function applySavedStateToNewSVG(newSvgGroup) {
   const savedStateJSON = localStorage.getItem("svgViewState");
   if (!savedStateJSON) {
