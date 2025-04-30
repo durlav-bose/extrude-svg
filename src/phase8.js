@@ -444,15 +444,47 @@ function loadSVG(url) {
 
       if (addedValidObject) {
         const bbox = new THREE.Box3().setFromObject(svgGroup);
-        const center = bbox.getCenter(new THREE.Vector3());
-        svgGroup.position.sub(center); // Center it inside the group
+        const svgWidth = bbox.getSize(new THREE.Vector3()).x;
+        const svgHeight = bbox.getSize(new THREE.Vector3()).y;
 
-        rotationGroup.add(svgGroup);
+        // Save SVG size and other properties the first time SVG is loaded
+        const svgState = {
+          svg: {
+            width: svgWidth,
+            height: svgHeight,
+          },
+          handles: {
+            anchorCanvasPosition: canvasToWorld(anchorLocalPosition), // Assuming anchorLocalPosition is the saved position
+          },
+        };
 
-        setupHandles();
+        // Save the initial settings into localStorage
+        localStorage.setItem("svgViewState", JSON.stringify(svgState));
 
-        anchorLocalPosition.set(0, 0, 0);
-        updateAnchorMarkerPosition();
+        // Now, apply the saved settings if they exist
+        const savedState = JSON.parse(localStorage.getItem("svgViewState"));
+        if (savedState) {
+          const savedWidth = savedState.svg.width;
+          const savedHeight = savedState.svg.height;
+
+          // Calculate scaling ratio based on the saved size
+          const scaleX = savedWidth / svgWidth;
+          const scaleY = savedHeight / svgHeight;
+
+          svgGroup.scale.set(scaleX, scaleY, 1);
+
+          // Restore anchor position and apply it
+          const canvasPos = savedState.handles.anchorCanvasPosition;
+          const worldPosition = canvasToWorld(canvasPos); // Convert back to world position
+          svgGroup.position.copy(worldPosition);
+
+          rotationGroup.add(svgGroup);
+
+          setupHandles();
+
+          anchorLocalPosition.set(0, 0, 0);
+          updateAnchorMarkerPosition();
+        }
       }
 
       createUIControls(svgGroup);
@@ -465,6 +497,68 @@ function loadSVG(url) {
       isLoadingSVG = false;
     }
   );
+}
+
+function restoreAnchorPosition() {
+  const savedState = JSON.parse(localStorage.getItem("svgViewState"));
+
+  if (!savedState || !savedState.anchorCanvasPosition) return;
+
+  // Get the saved anchor position from canvas
+  const canvasPosition = savedState.anchorCanvasPosition;
+
+  // Ensure anchorMarker is created before attempting to modify its position
+  if (!anchorMarker) {
+    // Create anchor marker if it doesn't exist
+    anchorMarker = createAnchorMarker();
+    rotationGroup.add(anchorMarker); // Add to rotationGroup
+  }
+
+  // Convert canvas position to world position and update anchor
+  const worldPosition = canvasToWorld(canvasPosition);
+  console.log("anchorMarker :>> ", anchorMarker); // Should show the anchorMarker now
+  anchorMarker.position.copy(worldPosition);
+  anchorLocalPosition.copy(rotationGroup.worldToLocal(worldPosition));
+
+  updateAnchorMarkerPosition();
+}
+
+function canvasToWorld(canvasPosition) {
+  const x = (canvasPosition.x / renderer.domElement.width) * 2 - 1;
+  const y = -(canvasPosition.y / renderer.domElement.height) * 2 + 1;
+
+  const vector = new THREE.Vector3(x, y, 0.5); // Assuming the z-depth to be 0.5
+  vector.unproject(camera);
+
+  const dir = vector.sub(camera.position).normalize();
+  const distance = -camera.position.z / dir.z;
+  const worldPosition = camera.position
+    .clone()
+    .add(dir.multiplyScalar(distance));
+
+  return worldPosition;
+}
+
+function applyAspectRatio() {
+  const savedState = JSON.parse(localStorage.getItem("svgViewState"));
+
+  if (!savedState) return;
+
+  const svgWidth = savedState.svgWidth;
+  const svgHeight = savedState.svgHeight;
+
+  // Get new SVG size and calculate scale to maintain aspect ratio
+  const newBBox = new THREE.Box3().setFromObject(svgGroup);
+  const newWidth = newBBox.max.x - newBBox.min.x;
+  const newHeight = newBBox.max.y - newBBox.min.y;
+
+  const scaleX = svgWidth / newWidth;
+  const scaleY = svgHeight / newHeight;
+
+  const scale = Math.min(scaleX, scaleY); // Scale uniformly to preserve aspect ratio
+
+  // Apply scale to the new SVG
+  svgGroup.scale.set(scale, scale, scale);
 }
 
 function setupHandles() {
@@ -768,7 +862,6 @@ function saveCurrentState() {
 
   const modelState = {};
   if (rotationGroup) {
-    // Capture model scale and rotation
     modelState.rotation = {
       x: rotationGroup.rotation.x,
       y: rotationGroup.rotation.y,
@@ -786,44 +879,22 @@ function saveCurrentState() {
     };
   }
 
-  // Capture the SVG size for aspect ratio adjustment
-  const svgSize = new THREE.Box3()
-    .setFromObject(rotationGroup)
-    .getSize(new THREE.Vector3());
-  const svgWidth = svgSize.x;
-  const svgHeight = svgSize.y;
+  // Calculate the SVG's bounding box
+  const bbox = new THREE.Box3().setFromObject(rotationGroup);
+  const svgWidth = bbox.getSize(new THREE.Vector3()).x;
+  const svgHeight = bbox.getSize(new THREE.Vector3()).y;
 
-  const anchorWorldPos = getAnchorWorldPosition();
-  let anchorWorldPosition = {
-    x: anchorWorldPos.x,
-    y: anchorWorldPos.y,
-    z: anchorWorldPos.z,
-  };
+  const anchorWorldPos = getAnchorWorldPosition(); // Assuming this function is defined
 
+  // Save the canvas position of the anchor (if needed)
+  const canvasPosition = worldToCanvas(anchorWorldPos); // This function would convert world coordinates to canvas space
+
+  // Save the necessary data
   const handlesState = {
     currentRotation: currentRotation,
-    movementHandle: movementHandle
-      ? {
-          position: {
-            x: movementHandle.position.x,
-            y: movementHandle.position.y,
-            z: movementHandle.position.z,
-          },
-          visible: movementHandle.visible,
-        }
-      : null,
-    rotationHandle: rotationHandle
-      ? {
-          position: {
-            x: rotationHandle.position.x,
-            y: rotationHandle.position.y,
-            z: rotationHandle.position.z,
-          },
-          visible: rotationHandle.visible,
-        }
-      : null,
     anchorPoint: anchorPoint,
-    anchorWorldPosition: anchorWorldPosition,
+    anchorWorldPosition: anchorWorldPos,
+    anchorCanvasPosition: canvasPosition, // Save anchor position on canvas
   };
 
   const renderingState = {
@@ -836,21 +907,19 @@ function saveCurrentState() {
     roughness: 0.2,
   };
 
+  // Save SVG dimensions and other settings
   const viewState = {
     camera: cameraState,
     controls: controlsState,
     model: modelState,
     handles: handlesState,
     rendering: renderingState,
-    svg: {
-      width: svgWidth, // Save the model's width
-      height: svgHeight, // Save the model's height
-    },
+    svg: { width: svgWidth, height: svgHeight }, // Save SVG size
   };
 
-  // Save the state to localStorage
+  // Store settings in localStorage
   localStorage.setItem("svgViewState", JSON.stringify(viewState));
-  console.log("Complete state saved:", viewState);
+  console.log("State saved:", viewState);
 }
 
 // Helper function to apply handle state
@@ -900,6 +969,31 @@ function applyHandlesState(handlesState) {
       rotationHandle.visible = handlesState.rotationHandle.visible;
     }
   }
+}
+
+function getAnchorCanvasPosition() {
+  if (!anchorMarker || !rotationGroup) return new THREE.Vector2();
+
+  // Get world position of anchor marker
+  const worldPosition = anchorMarker.getWorldPosition(new THREE.Vector3());
+
+  // Convert the world position to canvas (screen space) coordinates
+  const canvasPosition = worldToCanvas(worldPosition);
+
+  return canvasPosition;
+}
+
+// Helper function to convert world coordinates to canvas (screen space) coordinates
+function worldToCanvas(worldPosition) {
+  const vector = worldPosition.project(camera);
+
+  const canvasWidth = renderer.domElement.width;
+  const canvasHeight = renderer.domElement.height;
+
+  const x = ((vector.x + 1) / 2) * canvasWidth;
+  const y = ((-vector.y + 1) / 2) * canvasHeight;
+
+  return new THREE.Vector2(x, y);
 }
 
 function setupClickToSetAnchorPoint() {
@@ -968,6 +1062,8 @@ function init() {
 
   // Set up click-to-set-anchor-point functionality
   setupClickToSetAnchorPoint();
+
+  createUIControls(svgGroup);
 
   // Start animation loop
   animate();

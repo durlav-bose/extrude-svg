@@ -1,20 +1,9 @@
-// Add a global variable to store handle state if handles aren't created yet
-let pendingHandlesState = null;
-window.preserveCurrentPosition = false;
-
 let anchorPoint = { x: 0.5, y: 0.5 }; // Default center (normalized 0-1 coordinates)
 let anchorMarker; // Visual indicator for anchor point
-let useAnchorPointForScaling = true; // Enable/disable anchor-based scaling
-let initialGroupPosition = new THREE.Vector3();
-let centeredGroup = null;
+let useAnchorPointForScaling = true;
 
-let outputWidth = 1000;
-let outputHeight = 1000;
-let threeColor = null;
-let backgroundColor = null;
 // Scene setup
 const scene = new THREE.Scene();
-// scene.background = new THREE.Color(0x111111);
 
 let anchorWorldPosition = new THREE.Vector3(); // Global
 let anchorLocalPosition = new THREE.Vector3();
@@ -69,93 +58,11 @@ let movementHandle, rotationHandle;
 let isLoadingSVG = false;
 
 document
-  .getElementById("anchor-tl")
-  .addEventListener("click", () => setAnchorPoint(0, 1));
-document
-  .getElementById("anchor-tc")
-  .addEventListener("click", () => setAnchorPoint(0.5, 1));
-document
-  .getElementById("anchor-tr")
-  .addEventListener("click", () => setAnchorPoint(1, 1));
-document
-  .getElementById("anchor-ml")
-  .addEventListener("click", () => setAnchorPoint(0, 0.5));
-document
-  .getElementById("anchor-mc")
-  .addEventListener("click", () => setAnchorPoint(0.5, 0.5));
-document
-  .getElementById("anchor-mr")
-  .addEventListener("click", () => setAnchorPoint(1, 0.5));
-document
-  .getElementById("anchor-bl")
-  .addEventListener("click", () => setAnchorPoint(0, 0));
-document
-  .getElementById("anchor-bc")
-  .addEventListener("click", () => setAnchorPoint(0.5, 0));
-document
-  .getElementById("anchor-br")
-  .addEventListener("click", () => setAnchorPoint(1, 0));
-
-// Toggle anchor-based scaling
-document
-  .getElementById("use-anchor-scaling")
-  .addEventListener("change", (event) => {
-    useAnchorPointForScaling = event.target.checked;
-  });
-
-document.getElementById("scale-up").addEventListener("click", () => {
-  scaleAroundAnchorPoint(1.1); // Scale up by 10%
-});
-
-document.getElementById("scale-down").addEventListener("click", () => {
-  scaleAroundAnchorPoint(0.9); // Scale down by 10%
-});
+  .getElementById("save-details")
+  .addEventListener("click", saveCurrentState);
 
 // SVG Loader
 const loader = new THREE.SVGLoader();
-
-// Helper Functions
-function hasValidPoints(points) {
-  if (!points || points.length === 0) return false;
-  for (let i = 0; i < points.length; i++) {
-    if (isNaN(points[i].x) || isNaN(points[i].y)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function createThickLineFromPoints(points, thickness = 1.5) {
-  if (points.length < 2) return null;
-
-  const lineShapes = [];
-
-  for (let i = 0; i < points.length - 1; i++) {
-    const pointA = points[i];
-    const pointB = points[i + 1];
-
-    const direction = new THREE.Vector2(
-      pointB.x - pointA.x,
-      pointB.y - pointA.y
-    ).normalize();
-
-    const perpendicular = new THREE.Vector2(
-      -direction.y,
-      direction.x
-    ).multiplyScalar(thickness / 2);
-
-    const segmentShape = new THREE.Shape();
-    segmentShape.moveTo(pointA.x + perpendicular.x, pointA.y + perpendicular.y);
-    segmentShape.lineTo(pointB.x + perpendicular.x, pointB.y + perpendicular.y);
-    segmentShape.lineTo(pointB.x - perpendicular.x, pointB.y - perpendicular.y);
-    segmentShape.lineTo(pointA.x - perpendicular.x, pointA.y - perpendicular.y);
-    segmentShape.closePath();
-
-    lineShapes.push(segmentShape);
-  }
-
-  return lineShapes;
-}
 
 function createMovementHandle() {
   // Create a simple visual marker for the handle
@@ -280,18 +187,6 @@ function updateAnchorMarkerPosition() {
   anchorMarker.position.copy(anchorLocalPosition);
 }
 
-function setAnchorPoint(x, y) {
-  anchorPoint.x = x;
-  anchorPoint.y = y;
-  updateAnchorMarkerPosition();
-}
-
-function updateHandlesVisibility(visible) {
-  if (movementHandle) movementHandle.visible = visible;
-  if (rotationHandle) rotationHandle.visible = visible;
-  if (anchorMarker) anchorMarker.visible = visible;
-}
-
 function setupCustomZoomBehavior() {
   // Remove default scroll zoom from OrbitControls
   controls.enableZoom = false;
@@ -319,80 +214,12 @@ function setupCustomZoomBehavior() {
   );
 }
 
-function debounce(func, wait) {
-  let timeout;
-  return function (...args) {
-    const context = this;
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(context, args), wait);
-  };
-}
-
-function captureCurrentViewState() {
-  if (!camera || !controls || !rotationGroup) return null;
-
-  return {
-    camera: {
-      position: {
-        x: camera.position.x,
-        y: camera.position.y,
-        z: camera.position.z,
-      },
-      rotation: {
-        x: camera.rotation.x,
-        y: camera.rotation.y,
-        z: camera.rotation.z,
-        order: camera.rotation.order,
-      },
-      zoom: camera.zoom,
-    },
-    controls: {
-      target: {
-        x: controls.target.x,
-        y: controls.target.y,
-        z: controls.target.z,
-      },
-    },
-    model: {
-      rotation: {
-        x: rotationGroup.rotation.x,
-        y: rotationGroup.rotation.y,
-        z: rotationGroup.rotation.z,
-      },
-      position: {
-        x: rotationGroup.position.x,
-        y: rotationGroup.position.y,
-        z: rotationGroup.position.z,
-      },
-    },
-    handles:
-      movementHandle && rotationHandle
-        ? {
-            currentRotation: currentRotation,
-            movementHandle: {
-              position: {
-                x: movementHandle.position.x,
-                y: movementHandle.position.y,
-                z: movementHandle.position.z,
-              },
-              visible: movementHandle.visible,
-            },
-            rotationHandle: {
-              position: {
-                x: rotationHandle.position.x,
-                y: rotationHandle.position.y,
-                z: rotationHandle.position.z,
-              },
-              visible: rotationHandle.visible,
-            },
-          }
-        : null,
-  };
-}
-
 function loadSVG(url) {
   if (isLoadingSVG) return;
   isLoadingSVG = true;
+
+  // Store whether we should apply saved state
+  const applySavedState = !!localStorage.getItem("svgViewState");
 
   if (rotationGroup) scene.remove(rotationGroup);
 
@@ -407,6 +234,7 @@ function loadSVG(url) {
       svgGroup = new THREE.Group();
       let addedValidObject = false;
 
+      // [Existing SVG loading code remains unchanged]
       data.paths.forEach((path) => {
         const shapes = path.toShapes(false);
 
@@ -447,15 +275,23 @@ function loadSVG(url) {
         const center = bbox.getCenter(new THREE.Vector3());
         svgGroup.position.sub(center); // Center it inside the group
 
+        const svgSize = bbox.getSize(new THREE.Vector3());
+        console.log("svgSize :>> ", svgSize);
+
         rotationGroup.add(svgGroup);
 
+        // Set up initial handles and anchor
         setupHandles();
 
-        anchorLocalPosition.set(0, 0, 0);
-        updateAnchorMarkerPosition();
+        // IMPORTANT: Apply saved state if available
+        if (applySavedState) {
+          applySavedStateToNewSVG(svgGroup);
+        } else {
+          // Default initial setup
+          anchorLocalPosition.set(0, 0, 0);
+          updateAnchorMarkerPosition();
+        }
       }
-
-      createUIControls(svgGroup);
 
       isLoadingSVG = false;
     },
@@ -465,6 +301,147 @@ function loadSVG(url) {
       isLoadingSVG = false;
     }
   );
+}
+
+// function applySavedStateToNewSVG(newSvgGroup) {
+//   const savedStateJSON = localStorage.getItem("svgViewState");
+//   if (!savedStateJSON) {
+//     console.warn("No saved state found");
+//     return;
+//   }
+
+//   try {
+//     const savedState = JSON.parse(savedStateJSON);
+
+//     // IMPORTANT: First center the new SVG within its group
+//     const newBbox = new THREE.Box3().setFromObject(newSvgGroup);
+//     const newCenter = newBbox.getCenter(new THREE.Vector3());
+//     newSvgGroup.position.sub(newCenter); // Center it properly
+
+//     // Recalculate the bounding box after centering
+//     const centeredBbox = new THREE.Box3().setFromObject(newSvgGroup);
+//     const newSize = centeredBbox.getSize(new THREE.Vector3());
+
+//     // Set rotation first (important for correct positioning)
+//     rotationGroup.rotation.z = savedState.rotation;
+//     currentRotation = savedState.rotation;
+
+//     // Set scale (preserve the saved scale factor)
+//     rotationGroup.scale.set(
+//       savedState.scale,
+//       savedState.scale,
+//       savedState.scale
+//     );
+
+//     // Calculate the new anchor point position based on normalized coordinates
+//     // These are relative to the SVG's bounding box
+//     const newAnchorLocalX =
+//       (savedState.normalizedAnchorLocal.x - 0.5) * newSize.x;
+//     const newAnchorLocalY =
+//       (savedState.normalizedAnchorLocal.y - 0.5) * newSize.y;
+//     anchorLocalPosition.set(newAnchorLocalX, newAnchorLocalY, 0);
+
+//     // Update anchor marker position
+//     updateAnchorMarkerPosition();
+
+//     // Get the target world position for the anchor point (from saved state)
+//     const targetWorldAnchor = new THREE.Vector3(
+//       savedState.anchorWorldPosition.x,
+//       savedState.anchorWorldPosition.y,
+//       savedState.anchorWorldPosition.z
+//     );
+
+//     // Position the rotationGroup so that the anchor point matches the target world position
+//     // First, get what would be the current world position of the anchor
+//     const currentAnchorWorld = anchorLocalPosition.clone();
+//     rotationGroup.localToWorld(currentAnchorWorld);
+
+//     // Calculate the difference
+//     const offset = new THREE.Vector3().subVectors(
+//       targetWorldAnchor,
+//       currentAnchorWorld
+//     );
+
+//     // Apply the offset to position the group correctly
+//     rotationGroup.position.add(offset);
+
+//     // Update handles
+//     if (movementHandle) {
+//       movementHandle.position.x = rotationGroup.position.x;
+//       movementHandle.position.y = rotationGroup.position.y;
+//     }
+
+//     positionRotationHandle();
+
+//     console.log("Applied saved state to new SVG");
+//   } catch (error) {
+//     console.error("Error applying saved state:", error);
+//   }
+// }
+
+function applySavedStateToNewSVG(newSvgGroup) {
+  const savedStateJSON = localStorage.getItem("svgViewState");
+  if (!savedStateJSON) {
+    console.warn("No saved state found");
+    return;
+  }
+
+  try {
+    const savedState = JSON.parse(savedStateJSON);
+
+    const newBbox = new THREE.Box3().setFromObject(newSvgGroup);
+    const newSize = newBbox.getSize(new THREE.Vector3());
+
+    // De-normalize anchor from bbox.min (not center!)
+    const newAnchorLocalX =
+      (savedState.normalizedAnchorLocal.x - 0.5) * newSize.x;
+    const newAnchorLocalY =
+      (savedState.normalizedAnchorLocal.y - 0.5) * newSize.y;
+    anchorLocalPosition.set(newAnchorLocalX, newAnchorLocalY, 0);
+
+    rotationGroup.add(newSvgGroup);
+
+    // Apply saved rotation and scale
+    rotationGroup.rotation.z = savedState.rotation;
+    currentRotation = savedState.rotation;
+
+    rotationGroup.scale.set(
+      savedState.scale,
+      savedState.scale,
+      savedState.scale
+    );
+
+    updateAnchorMarkerPosition();
+
+    // Match anchor world position exactly
+    const anchorWorldAfter = anchorLocalPosition.clone();
+    rotationGroup.localToWorld(anchorWorldAfter);
+
+    const targetWorldAnchor = new THREE.Vector3(
+      savedState.anchorWorldPosition.x,
+      savedState.anchorWorldPosition.y,
+      savedState.anchorWorldPosition.z
+    );
+
+    const shift = new THREE.Vector3().subVectors(
+      targetWorldAnchor,
+      anchorWorldAfter
+    );
+    console.log("shift :>> ", shift);
+    rotationGroup.position.add(shift);
+
+    // Update handles
+    if (movementHandle) {
+      movementHandle.position.x = rotationGroup.position.x;
+      movementHandle.position.y = rotationGroup.position.y;
+    }
+
+    positionRotationHandle();
+
+    console.log("Applied saved state to new SVG");
+  } catch (error) {
+    console.error("Error applying saved state:", error);
+  }
 }
 
 function setupHandles() {
@@ -495,8 +472,11 @@ function setupHandles() {
     anchorMarker = createAnchorMarker();
     rotationGroup.add(anchorMarker);
   }
-  anchorLocalPosition.set(0, 0, 0);
-  updateAnchorMarkerPosition();
+
+  if (!localStorage.getItem("svgViewState")) {
+    anchorLocalPosition.set(0, 0, 0);
+    updateAnchorMarkerPosition();
+  }
 
   // Setup drag for movement
   const moveControls = new THREE.DragControls(
@@ -588,81 +568,46 @@ function setupRotationDrag() {
   rotationControls.addEventListener("dragend", () => (controls.enabled = true));
 }
 
-function createUIControls(svgGroup) {
-  // Path color buttons with fixed handling
-  document.querySelectorAll(".color-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      const colorHex = button.dataset.color;
-      // Parse the hex color to an integer (e.g., "0xFF0000" -> 16711680)
-      const colorInt = parseInt(colorHex);
-
-      // Create a Three.js color object
-      threeColor = new THREE.Color(colorInt);
-
-      // Apply to all mesh materials
-      svgGroup.traverse((child) => {
-        if (child.isMesh && child.material) {
-          if (Array.isArray(child.material)) {
-            // Handle multi-material
-            child.material.forEach((mat) => {
-              if (mat.color) {
-                mat.color.copy(threeColor);
-                mat.needsUpdate = true;
-              }
-            });
-          } else {
-            // Single material
-            if (child.material.color) {
-              child.material.color.copy(threeColor);
-              child.material.needsUpdate = true;
-            }
-          }
-        }
-      });
-
-      // Log the color change for debugging
-      console.log(
-        "Changed color to:",
-        colorHex,
-        "RGB:",
-        threeColor.r.toFixed(2),
-        threeColor.g.toFixed(2),
-        threeColor.b.toFixed(2)
-      );
-    });
-  });
-
-  // Background color buttons
-  document.querySelectorAll(".bg-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      const color = parseInt(button.dataset.color);
-      backgroundColor = color;
-      scene.background = new THREE.Color(color);
-    });
-  });
-
-  document
-    .getElementById("save-details")
-    .addEventListener("click", saveCurrentState);
-}
-
-function updateSavedState(updateFn) {
-  const savedState = localStorage.getItem("svgViewState");
-  let state = {};
-
-  if (savedState) {
-    try {
-      state = JSON.parse(savedState);
-    } catch (e) {
-      console.error("Error parsing saved state:", e);
-    }
+function saveCurrentState() {
+  if (!rotationGroup || !svgGroup) {
+    console.warn("Nothing to save - SVG not loaded");
+    return;
   }
 
-  // Apply the update function to modify the state
-  state = updateFn(state);
+  const bbox = new THREE.Box3().setFromObject(svgGroup);
+  const svgSize = bbox.getSize(new THREE.Vector3());
 
-  // Save the updated state back to localStorage
-  localStorage.setItem("svgViewState", JSON.stringify(state));
+  // Update anchor world position before saving
+  updateAnchorWorldPosition();
+
+  const normalizedAnchorLocal = {
+    x: anchorLocalPosition.x / svgSize.x + 0.5,
+    y: anchorLocalPosition.y / svgSize.y + 0.5,
+  };
+
+  console.log("svgSize :>> ", svgSize);
+
+  const stateToSave = {
+    position: {
+      x: rotationGroup.position.x,
+      y: rotationGroup.position.y,
+      z: rotationGroup.position.z,
+    },
+    rotation: currentRotation,
+    scale: rotationGroup.scale.x, // assuming uniform scaling
+    normalizedAnchorLocal,
+    originalDimensions: {
+      width: svgSize.x,
+      height: svgSize.y,
+    },
+    anchorWorldPosition: {
+      x: anchorWorldPosition.x,
+      y: anchorWorldPosition.y,
+      z: anchorWorldPosition.z,
+    },
+  };
+
+  localStorage.setItem("svgViewState", JSON.stringify(stateToSave));
 }
 
 function hasNaN(geometry) {
@@ -676,14 +621,15 @@ function hasNaN(geometry) {
 }
 
 window.addEventListener("resize", () => {
-  // For fixed size renderer, we don't need to adjust width/height
-  // But we do need to adjust the camera frustum
-  const newAspect = window.innerWidth / window.innerHeight;
-  camera.left = (frustumSize * newAspect) / -2;
-  camera.right = (frustumSize * newAspect) / 2;
-  camera.top = frustumSize / 2;
-  camera.bottom = frustumSize / -2;
+  const width = 850;
+  const height = 850;
+  renderer.setSize(width, height);
+  camera.left = -width / 2;
+  camera.right = width / 2;
+  camera.top = height / 2;
+  camera.bottom = -height / 2;
   camera.updateProjectionMatrix();
+  controls.update();
 });
 
 function animate() {
@@ -730,176 +676,26 @@ function animate() {
   }
 
   positionRotationHandle();
+  updateAnchorWorldPosition();
 
   renderer.render(scene, camera);
 }
 
-function saveCurrentState() {
-  console.log("Saving current state...");
-
-  const cameraState = {
-    position: {
-      x: camera.position.x,
-      y: camera.position.y,
-      z: camera.position.z,
-    },
-    rotation: {
-      x: camera.rotation.x,
-      y: camera.rotation.y,
-      z: camera.rotation.z,
-      order: camera.rotation.order,
-    },
-    zoom: camera.zoom,
-    left: camera.left,
-    right: camera.right,
-    top: camera.top,
-    bottom: camera.bottom,
-    near: camera.near,
-    far: camera.far,
-  };
-
-  const controlsState = {
-    target: {
-      x: controls.target.x,
-      y: controls.target.y,
-      z: controls.target.z,
-    },
-  };
-
-  const modelState = {};
-  if (rotationGroup) {
-    // Capture model scale and rotation
-    modelState.rotation = {
-      x: rotationGroup.rotation.x,
-      y: rotationGroup.rotation.y,
-      z: rotationGroup.rotation.z,
-    };
-    modelState.position = {
-      x: rotationGroup.position.x,
-      y: rotationGroup.position.y,
-      z: rotationGroup.position.z,
-    };
-    modelState.scale = {
-      x: rotationGroup.scale.x,
-      y: rotationGroup.scale.y,
-      z: rotationGroup.scale.z,
-    };
-  }
-
-  // Capture the SVG size for aspect ratio adjustment
-  const svgSize = new THREE.Box3()
-    .setFromObject(rotationGroup)
-    .getSize(new THREE.Vector3());
-  const svgWidth = svgSize.x;
-  const svgHeight = svgSize.y;
-
-  const anchorWorldPos = getAnchorWorldPosition();
-  let anchorWorldPosition = {
-    x: anchorWorldPos.x,
-    y: anchorWorldPos.y,
-    z: anchorWorldPos.z,
-  };
-
-  const handlesState = {
-    currentRotation: currentRotation,
-    movementHandle: movementHandle
-      ? {
-          position: {
-            x: movementHandle.position.x,
-            y: movementHandle.position.y,
-            z: movementHandle.position.z,
-          },
-          visible: movementHandle.visible,
-        }
-      : null,
-    rotationHandle: rotationHandle
-      ? {
-          position: {
-            x: rotationHandle.position.x,
-            y: rotationHandle.position.y,
-            z: rotationHandle.position.z,
-          },
-          visible: rotationHandle.visible,
-        }
-      : null,
-    anchorPoint: anchorPoint,
-    anchorWorldPosition: anchorWorldPosition,
-  };
-
-  const renderingState = {
-    modelColor: threeColor ? threeColor.getHex() : 0x00ff00,
-    backgroundColor: scene.background ? scene.background.getHex() : null,
-    extrusionDepth: 10,
-    bevelEnabled: true,
-    curveSegments: 24,
-    metalness: 0.8,
-    roughness: 0.2,
-  };
-
-  const viewState = {
-    camera: cameraState,
-    controls: controlsState,
-    model: modelState,
-    handles: handlesState,
-    rendering: renderingState,
-    svg: {
-      width: svgWidth, // Save the model's width
-      height: svgHeight, // Save the model's height
-    },
-  };
-
-  // Save the state to localStorage
-  localStorage.setItem("svgViewState", JSON.stringify(viewState));
-  console.log("Complete state saved:", viewState);
+function updateAnchorWorldPosition() {
+  getAnchorWorldPosition();
 }
 
-// Helper function to apply handle state
-function applyHandlesState(handlesState) {
-  // Apply current rotation value
-  if (handlesState.currentRotation !== undefined) {
-    currentRotation = handlesState.currentRotation;
+function getAnchorWorldPosition() {
+  if (!svgGroup || !rotationGroup) return new THREE.Vector3();
 
-    // If rotationGroup exists, ensure rotation is applied
-    if (rotationGroup && rotationGroup.rotation) {
-      rotationGroup.rotation.z = currentRotation;
-    }
-  }
+  // Calculate the world position of the current anchor point
+  const worldPos = anchorLocalPosition.clone();
+  rotationGroup.localToWorld(worldPos);
 
-  if (handlesState.anchorPoint) {
-    anchorPoint.x = handlesState.anchorPoint.x;
-    anchorPoint.y = handlesState.anchorPoint.y;
-    updateAnchorMarkerPosition();
-  }
+  // Store this for saving state
+  anchorWorldPosition = worldPos.clone();
 
-  // Apply movement handle state
-  if (handlesState.movementHandle && movementHandle) {
-    if (handlesState.movementHandle.position) {
-      movementHandle.position.set(
-        handlesState.movementHandle.position.x,
-        handlesState.movementHandle.position.y,
-        handlesState.movementHandle.position.z
-      );
-    }
-
-    if (handlesState.movementHandle.visible !== undefined) {
-      movementHandle.visible = handlesState.movementHandle.visible;
-    }
-  }
-
-  // Apply rotation handle state
-  if (handlesState.rotationHandle && rotationHandle) {
-    if (handlesState.rotationHandle.position) {
-      rotationHandle.position.set(
-        handlesState.rotationHandle.position.x,
-        handlesState.rotationHandle.position.y,
-        handlesState.rotationHandle.position.z
-      );
-    }
-
-    if (handlesState.rotationHandle.visible !== undefined) {
-      rotationHandle.visible = handlesState.rotationHandle.visible;
-    }
-  }
+  return worldPos;
 }
 
 function setupClickToSetAnchorPoint() {
@@ -930,30 +726,6 @@ function setupClickToSetAnchorPoint() {
   });
 }
 
-function getAnchorWorldPosition() {
-  if (!svgGroup || !rotationGroup) return new THREE.Vector3();
-
-  // Calculate bounding box of SVG
-  const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const svgSize = bbox.getSize(new THREE.Vector3());
-
-  // Get the anchor position in local coordinates
-  const anchorX = (anchorPoint.x - 0.5) * svgSize.x;
-  const anchorY = (anchorPoint.y - 0.5) * svgSize.y;
-
-  // Create a vector
-  const worldAnchor = new THREE.Vector3(anchorX, anchorY, 0);
-
-  // Apply rotation
-  const rotMatrix = new THREE.Matrix4().makeRotationZ(rotationGroup.rotation.z);
-  worldAnchor.applyMatrix4(rotMatrix);
-
-  // Apply translation
-  worldAnchor.add(rotationGroup.position);
-
-  return worldAnchor;
-}
-
 // Update the init function to remove the timeout
 function init() {
   // Check if we have a saved state
@@ -961,7 +733,7 @@ function init() {
 
   // Load SVG - either the one from saved state or default
   if (savedState) {
-    loadSVG("../assets/x-02.svg");
+    loadSVG("../assets/x-02-long.svg");
   } else {
     loadSVG("../assets/x-02-long.svg");
   }

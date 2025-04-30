@@ -297,10 +297,15 @@ function setupCustomZoomBehavior() {
   controls.enableZoom = false;
 
   // Add our own wheel event listener
+  let isZoomEventInProgress = false; // Flag to avoid recursive dispatching
   renderer.domElement.addEventListener(
     "wheel",
     function (event) {
       event.preventDefault();
+
+      if (isZoomEventInProgress) return; // Skip if already handling zoom event
+      isZoomEventInProgress = true; // Set flag to true while processing
+
       if (useAnchorPointForScaling && rotationGroup) {
         // Determine scale factor based on scroll direction
         const scaleFactor = event.deltaY > 0 ? 0.9 : 1.1; // Adjust these values as needed
@@ -308,12 +313,14 @@ function setupCustomZoomBehavior() {
       } else {
         // Fallback to default orbit controls zoom
         controls.enableZoom = true;
-        // Re-trigger the event
+        // Re-trigger the event only if necessary (avoid recursion)
         const newEvent = new WheelEvent("wheel", event);
         controls.domElement.dispatchEvent(newEvent);
-        // Disable again
+        // Disable zoom again after dispatching the event
         controls.enableZoom = false;
       }
+
+      isZoomEventInProgress = false; // Reset flag after processing
     },
     { passive: false }
   );
@@ -328,71 +335,22 @@ function debounce(func, wait) {
   };
 }
 
-function captureCurrentViewState() {
-  if (!camera || !controls || !rotationGroup) return null;
-
-  return {
-    camera: {
-      position: {
-        x: camera.position.x,
-        y: camera.position.y,
-        z: camera.position.z,
-      },
-      rotation: {
-        x: camera.rotation.x,
-        y: camera.rotation.y,
-        z: camera.rotation.z,
-        order: camera.rotation.order,
-      },
-      zoom: camera.zoom,
-    },
-    controls: {
-      target: {
-        x: controls.target.x,
-        y: controls.target.y,
-        z: controls.target.z,
-      },
-    },
-    model: {
-      rotation: {
-        x: rotationGroup.rotation.x,
-        y: rotationGroup.rotation.y,
-        z: rotationGroup.rotation.z,
-      },
-      position: {
-        x: rotationGroup.position.x,
-        y: rotationGroup.position.y,
-        z: rotationGroup.position.z,
-      },
-    },
-    handles:
-      movementHandle && rotationHandle
-        ? {
-            currentRotation: currentRotation,
-            movementHandle: {
-              position: {
-                x: movementHandle.position.x,
-                y: movementHandle.position.y,
-                z: movementHandle.position.z,
-              },
-              visible: movementHandle.visible,
-            },
-            rotationHandle: {
-              position: {
-                x: rotationHandle.position.x,
-                y: rotationHandle.position.y,
-                z: rotationHandle.position.z,
-              },
-              visible: rotationHandle.visible,
-            },
-          }
-        : null,
-  };
-}
-
 function loadSVG(url) {
   if (isLoadingSVG) return;
   isLoadingSVG = true;
+
+  // Get saved state if available
+  const savedState = localStorage.getItem("svgViewState");
+  let state = null;
+
+  if (savedState) {
+    try {
+      state = JSON.parse(savedState);
+      console.log("Found saved state:", state);
+    } catch (e) {
+      console.error("Error parsing saved state:", e);
+    }
+  }
 
   if (rotationGroup) scene.remove(rotationGroup);
 
@@ -407,6 +365,7 @@ function loadSVG(url) {
       svgGroup = new THREE.Group();
       let addedValidObject = false;
 
+      // Process SVG paths (existing code)
       data.paths.forEach((path) => {
         const shapes = path.toShapes(false);
 
@@ -443,20 +402,28 @@ function loadSVG(url) {
       });
 
       if (addedValidObject) {
+        // Get the bounding box of the new SVG
         const bbox = new THREE.Box3().setFromObject(svgGroup);
         const center = bbox.getCenter(new THREE.Vector3());
-        svgGroup.position.sub(center); // Center it inside the group
 
+        // First center the SVG at origin
+        svgGroup.position.sub(center);
+
+        // Add to rotation group
         rotationGroup.add(svgGroup);
 
-        setupHandles();
-
-        anchorLocalPosition.set(0, 0, 0);
-        updateAnchorMarkerPosition();
+        if (state && state.anchor && state.svg) {
+          // Apply state with anchor position preservation
+          applyLoadedSvgState(state);
+        } else {
+          // Default setup
+          anchorLocalPosition.set(0, 0, 0);
+          setupHandles();
+          updateAnchorMarkerPosition();
+        }
       }
 
       createUIControls(svgGroup);
-
       isLoadingSVG = false;
     },
     undefined,
@@ -465,6 +432,97 @@ function loadSVG(url) {
       isLoadingSVG = false;
     }
   );
+}
+
+function applyLoadedSvgState(state) {
+  if (!svgGroup || !rotationGroup) return;
+
+  console.log("Applying saved state to new SVG...");
+
+  // Get the bounding box of the new SVG
+  const newBbox = new THREE.Box3().setFromObject(svgGroup);
+  const newSvgSize = newBbox.getSize(new THREE.Vector3());
+  const newSvgMin = newBbox.min;
+
+  // Original SVG dimensions
+  const origSvgDims = state.svg;
+
+  // 1. Apply rotation from saved state
+  if (state.model && state.model.rotation) {
+    rotationGroup.rotation.set(
+      state.model.rotation.x,
+      state.model.rotation.y,
+      state.model.rotation.z
+    );
+    currentRotation = state.model.rotation.z;
+  }
+
+  // 2. Calculate scale factor to maintain aspect ratio
+  let scaleFactor;
+
+  // Choose scaling strategy based on aspect ratio
+  if (newSvgSize.x / newSvgSize.y > origSvgDims.aspectRatio) {
+    // New SVG is wider proportionally - use height to scale
+    scaleFactor = origSvgDims.height / newSvgSize.y;
+  } else {
+    // New SVG is taller proportionally - use width to scale
+    scaleFactor = origSvgDims.width / newSvgSize.x;
+  }
+
+  // Apply the scale factor
+  rotationGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+  // 3. Set anchor local position based on normalized coordinates
+  if (state.anchor && state.anchor.normalizedPosition) {
+    // Recalculate bbox after scaling
+    const scaledBbox = new THREE.Box3().setFromObject(svgGroup);
+    const scaledSize = scaledBbox.getSize(new THREE.Vector3());
+    const scaledMin = scaledBbox.min;
+
+    // Set local anchor position using normalized coordinates
+    anchorLocalPosition.set(
+      scaledMin.x + state.anchor.normalizedPosition.x * scaledSize.x,
+      scaledMin.y + state.anchor.normalizedPosition.y * scaledSize.y,
+      0
+    );
+  }
+
+  // 4. Position the SVG so anchor is at the saved world position
+  if (state.anchor && state.anchor.worldPosition) {
+    // Get current anchor world position after rotation and scaling
+    const currentAnchorWorld = anchorLocalPosition.clone();
+    rotationGroup.localToWorld(currentAnchorWorld);
+
+    // Target world position from saved state
+    const targetAnchorWorld = new THREE.Vector3(
+      state.anchor.worldPosition.x,
+      state.anchor.worldPosition.y,
+      state.anchor.worldPosition.z
+    );
+
+    // Calculate offset and apply to rotation group position
+    const offset = new THREE.Vector3().subVectors(
+      targetAnchorWorld,
+      currentAnchorWorld
+    );
+
+    rotationGroup.position.add(offset);
+  }
+
+  // 5. Set up handles
+  setupHandles();
+
+  // 6. Update anchor marker
+  updateAnchorMarkerPosition();
+
+  // 7. Verify anchor canvas position
+  if (state.anchor && state.anchor.canvasPosition) {
+    const currentAnchorCanvas = worldToCanvas(anchorLocalPosition.clone());
+    rotationGroup.localToWorld(anchorLocalPosition.clone());
+
+    console.log("Target canvas position:", state.anchor.canvasPosition);
+    console.log("Current canvas position:", currentAnchorCanvas);
+  }
 }
 
 function setupHandles() {
@@ -786,18 +844,48 @@ function saveCurrentState() {
     };
   }
 
-  // Capture the SVG size for aspect ratio adjustment
-  const svgSize = new THREE.Box3()
-    .setFromObject(rotationGroup)
-    .getSize(new THREE.Vector3());
-  const svgWidth = svgSize.x;
-  const svgHeight = svgSize.y;
+  // Enhanced anchor point saving
+  const worldAnchorPosition = new THREE.Vector3();
+  if (rotationGroup && svgGroup) {
+    // Get the anchor point in world coordinates
+    worldAnchorPosition.copy(anchorLocalPosition.clone());
+    rotationGroup.localToWorld(worldAnchorPosition);
 
-  const anchorWorldPos = getAnchorWorldPosition();
-  let anchorWorldPosition = {
-    x: anchorWorldPos.x,
-    y: anchorWorldPos.y,
-    z: anchorWorldPos.z,
+    // Calculate SVG bounding box
+    const bbox = new THREE.Box3().setFromObject(svgGroup);
+    const svgSize = bbox.getSize(new THREE.Vector3());
+    const svgMin = bbox.min;
+
+    // Calculate normalized coordinates relative to SVG bounds
+    const normalizedAnchorPosition = {
+      x: (anchorLocalPosition.x - svgMin.x) / svgSize.x,
+      y: (anchorLocalPosition.y - svgMin.y) / svgSize.y,
+    };
+
+    // Get canvas coordinates of anchor point
+    const canvasPosition = worldToCanvas(worldAnchorPosition);
+
+    // Save anchor data
+    anchorState = {
+      worldPosition: {
+        x: worldAnchorPosition.x,
+        y: worldAnchorPosition.y,
+        z: worldAnchorPosition.z,
+      },
+      normalizedPosition: normalizedAnchorPosition,
+      canvasPosition: canvasPosition,
+    };
+  }
+
+  // Calculate SVG dimensions and aspect ratio
+  const svgSize = new THREE.Box3()
+    .setFromObject(svgGroup)
+    .getSize(new THREE.Vector3());
+
+  const svgDimensions = {
+    width: svgSize.x,
+    height: svgSize.y,
+    aspectRatio: svgSize.x / svgSize.y,
   };
 
   const handlesState = {
@@ -823,7 +911,6 @@ function saveCurrentState() {
         }
       : null,
     anchorPoint: anchorPoint,
-    anchorWorldPosition: anchorWorldPosition,
   };
 
   const renderingState = {
@@ -842,15 +929,42 @@ function saveCurrentState() {
     model: modelState,
     handles: handlesState,
     rendering: renderingState,
-    svg: {
-      width: svgWidth, // Save the model's width
-      height: svgHeight, // Save the model's height
-    },
+    svg: svgDimensions,
+    anchor: anchorState,
   };
 
   // Save the state to localStorage
   localStorage.setItem("svgViewState", JSON.stringify(viewState));
   console.log("Complete state saved:", viewState);
+}
+
+function worldToCanvas(worldPos) {
+  const vector = worldPos.clone();
+  vector.project(camera);
+
+  return {
+    x: (vector.x * 0.5 + 0.5) * renderer.domElement.width,
+    y: (-(vector.y * 0.5) + 0.5) * renderer.domElement.height,
+  };
+}
+
+function canvasToWorld(canvasPos, targetZ = 0) {
+  const vector = new THREE.Vector3(
+    (canvasPos.x / renderer.domElement.width) * 2 - 1,
+    -(canvasPos.y / renderer.domElement.height) * 2 + 1,
+    0
+  );
+
+  vector.unproject(camera);
+
+  // Calculate the ray direction from camera to this point
+  const dir = vector.sub(camera.position).normalize();
+
+  // Calculate distance to the targetZ plane
+  const distance = (targetZ - camera.position.z) / dir.z;
+
+  // Calculate the actual point in 3D space
+  return camera.position.clone().add(dir.multiplyScalar(distance));
 }
 
 // Helper function to apply handle state
