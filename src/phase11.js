@@ -379,8 +379,7 @@ function applySavedStateToNewSVG(newSvgGroup) {
   try {
     const savedState = JSON.parse(savedStateJSON);
 
-    const savedWidth = savedState.originalDimensions.width;
-    const savedHeight = savedState.originalDimensions.height;
+    // Get the normalized anchor position
     const normalizedX = savedState.normalizedAnchorLocal.x;
     const normalizedY = savedState.normalizedAnchorLocal.y;
 
@@ -391,32 +390,29 @@ function applySavedStateToNewSVG(newSvgGroup) {
 
     // Add to group before applying scale/rotation
     rotationGroup.add(newSvgGroup);
+
+    // Get the original SVG size before any transformations
+    const originalBbox = new THREE.Box3().setFromObject(newSvgGroup);
+    const originalSize = originalBbox.getSize(new THREE.Vector3());
+
+    // Calculate the anchor point in the new SVG's local space (before scaling)
+    const anchorLocalX = (normalizedX - 0.5) * originalSize.x;
+    const anchorLocalY = (normalizedY - 0.5) * originalSize.y;
+    anchorLocalPosition.set(anchorLocalX, anchorLocalY, 0);
+
+    // Apply scale first
     rotationGroup.scale.setScalar(savedState.scale);
+
+    // Apply rotation
     rotationGroup.rotation.z = savedState.rotation;
     currentRotation = savedState.rotation;
 
-    // Compute anchor local position in new SVG using new size
-    const scaledBbox = new THREE.Box3().setFromObject(rotationGroup); // use scaled bbox
-    const scaledSize = scaledBbox.getSize(new THREE.Vector3());
+    // Update matrices to ensure transformations are applied
+    rotationGroup.updateMatrixWorld(true);
 
-    const anchorLocalX = (normalizedX - 0.5) * scaledSize.x;
-    const anchorLocalY = (normalizedY - 0.5) * scaledSize.y;
-    anchorLocalPosition.set(anchorLocalX, anchorLocalY, 0);
-
-    // const scaledWidth = savedWidth * savedState.scale;
-    // const scaledHeight = savedHeight * savedState.scale;
-
-    // const anchorLocalX = (normalizedX - 0.5) * scaledWidth;
-    // const anchorLocalY = (normalizedY - 0.5) * scaledHeight;
-    // anchorLocalPosition.set(anchorLocalX, anchorLocalY, 0);
-
-    // Convert local anchor to world position
+    // Convert local anchor to world position after transformations
     const currentAnchorWorld = anchorLocalPosition.clone();
-    // WE NEED TO USE THE ROTATION GROUP TO GET THE WORLD POSITION
     rotationGroup.localToWorld(currentAnchorWorld);
-    rotationGroup.updateMatrixWorld(); // Ensure world matrix is updated
-    rotationGroup.updateWorldMatrix(true, false); // Update world matrix
-    // rotationGroup.localToWorld(currentAnchorWorld);
 
     // Target saved world anchor position
     const targetWorldAnchor = new THREE.Vector3().copy(
@@ -430,10 +426,10 @@ function applySavedStateToNewSVG(newSvgGroup) {
     );
     rotationGroup.position.add(shift);
 
-    console.log("targetWorldAnchor :>> ", targetWorldAnchor);
-
     // Update marker and handles
-    anchorMarker.position.copy(targetWorldAnchor);
+    if (anchorMarker) {
+      anchorMarker.position.copy(anchorLocalPosition);
+    }
     updateAnchorMarkerPosition();
     if (movementHandle) movementHandle.position.copy(rotationGroup.position);
     positionRotationHandle();
@@ -443,7 +439,6 @@ function applySavedStateToNewSVG(newSvgGroup) {
     console.error("❌ Error applying saved state:", error);
   }
 }
-
 function setupHandles() {
   if (movementHandle) {
     scene.remove(movementHandle);
@@ -574,18 +569,20 @@ function saveCurrentState() {
     return;
   }
 
-  const bbox = new THREE.Box3().setFromObject(svgGroup);
-  const svgSize = bbox.getSize(new THREE.Vector3());
+  // Get the original SVG size (before scaling)
+  const tempGroup = new THREE.Group();
+  const tempSvg = svgGroup.clone();
+  tempGroup.add(tempSvg);
+  const originalBbox = new THREE.Box3().setFromObject(tempSvg);
+  const originalSize = originalBbox.getSize(new THREE.Vector3());
 
   // Update anchor world position before saving
   updateAnchorWorldPosition();
 
   const normalizedAnchorLocal = {
-    x: anchorLocalPosition.x / svgSize.x + 0.5,
-    y: anchorLocalPosition.y / svgSize.y + 0.5,
+    x: anchorLocalPosition.x / originalSize.x + 0.5,
+    y: anchorLocalPosition.y / originalSize.y + 0.5,
   };
-
-  console.log("svgSize :>> ", svgSize);
 
   const stateToSave = {
     position: {
@@ -594,11 +591,11 @@ function saveCurrentState() {
       z: rotationGroup.position.z,
     },
     rotation: currentRotation,
-    scale: rotationGroup.scale.x, // assuming uniform scaling
+    scale: rotationGroup.scale.x,
     normalizedAnchorLocal,
     originalDimensions: {
-      width: svgSize.x,
-      height: svgSize.y,
+      width: originalSize.x,
+      height: originalSize.y,
     },
     anchorWorldPosition: {
       x: anchorWorldPosition.x,
@@ -608,6 +605,7 @@ function saveCurrentState() {
   };
 
   localStorage.setItem("svgViewState", JSON.stringify(stateToSave));
+  console.log("State saved:", stateToSave);
 }
 
 function hasNaN(geometry) {
