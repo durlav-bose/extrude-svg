@@ -303,6 +303,71 @@ function loadSVG(url) {
   );
 }
 
+// function applySavedStateToNewSVG(newSvgGroup) {
+//   const savedStateJSON = localStorage.getItem("svgViewState");
+//   if (!savedStateJSON) {
+//     console.warn("No saved state found");
+//     return;
+//   }
+
+//   try {
+//     const savedState = JSON.parse(savedStateJSON);
+
+//     const newBbox = new THREE.Box3().setFromObject(newSvgGroup);
+//     const newSize = newBbox.getSize(new THREE.Vector3());
+
+//     // De-normalize anchor from bbox.min (not center!)
+//     const newAnchorLocalX =
+//       (savedState.normalizedAnchorLocal.x - 0.5) * newSize.x;
+//     const newAnchorLocalY =
+//       (savedState.normalizedAnchorLocal.y - 0.5) * newSize.y;
+//     anchorLocalPosition.set(newAnchorLocalX, newAnchorLocalY, 0);
+
+//     rotationGroup.add(newSvgGroup);
+
+//     // Apply saved rotation and scale
+//     rotationGroup.rotation.z = savedState.rotation;
+//     currentRotation = savedState.rotation;
+
+//     rotationGroup.scale.set(
+//       savedState.scale,
+//       savedState.scale,
+//       savedState.scale
+//     );
+
+//     updateAnchorMarkerPosition();
+
+//     // Match anchor world position exactly
+//     const anchorWorldAfter = anchorLocalPosition.clone();
+//     rotationGroup.localToWorld(anchorWorldAfter);
+
+//     const targetWorldAnchor = new THREE.Vector3(
+//       savedState.anchorWorldPosition.x,
+//       savedState.anchorWorldPosition.y,
+//       savedState.anchorWorldPosition.z
+//     );
+
+//     const shift = new THREE.Vector3().subVectors(
+//       targetWorldAnchor,
+//       anchorWorldAfter
+//     );
+//     console.log("shift :>> ", shift);
+//     rotationGroup.position.add(shift);
+
+//     // Update handles
+//     if (movementHandle) {
+//       movementHandle.position.x = rotationGroup.position.x;
+//       movementHandle.position.y = rotationGroup.position.y;
+//     }
+
+//     positionRotationHandle();
+
+//     console.log("Applied saved state to new SVG");
+//   } catch (error) {
+//     console.error("Error applying saved state:", error);
+//   }
+// }
+
 function applySavedStateToNewSVG(newSvgGroup) {
   const savedStateJSON = localStorage.getItem("svgViewState");
   if (!savedStateJSON) {
@@ -313,58 +378,68 @@ function applySavedStateToNewSVG(newSvgGroup) {
   try {
     const savedState = JSON.parse(savedStateJSON);
 
-    const newBbox = new THREE.Box3().setFromObject(newSvgGroup);
-    const newSize = newBbox.getSize(new THREE.Vector3());
+    const savedWidth = savedState.originalDimensions.width;
+    const savedHeight = savedState.originalDimensions.height;
+    const normalizedX = savedState.normalizedAnchorLocal.x;
+    const normalizedY = savedState.normalizedAnchorLocal.y;
 
-    // De-normalize anchor from bbox.min (not center!)
-    const newAnchorLocalX =
-      (savedState.normalizedAnchorLocal.x - 0.5) * newSize.x;
-    const newAnchorLocalY =
-      (savedState.normalizedAnchorLocal.y - 0.5) * newSize.y;
-    anchorLocalPosition.set(newAnchorLocalX, newAnchorLocalY, 0);
+    // Center the new SVG
+    const bbox = new THREE.Box3().setFromObject(newSvgGroup);
+    const center = bbox.getCenter(new THREE.Vector3());
+    newSvgGroup.position.sub(center);
 
+    // Add to group before applying scale/rotation
     rotationGroup.add(newSvgGroup);
-
-    // Apply saved rotation and scale
+    rotationGroup.scale.setScalar(savedState.scale);
     rotationGroup.rotation.z = savedState.rotation;
     currentRotation = savedState.rotation;
 
-    rotationGroup.scale.set(
-      savedState.scale,
-      savedState.scale,
-      savedState.scale
+    // Compute anchor local position in new SVG using new size
+    const scaledBbox = new THREE.Box3().setFromObject(rotationGroup); // use scaled bbox
+    const scaledSize = scaledBbox.getSize(new THREE.Vector3());
+
+    const anchorLocalX = (normalizedX - 0.5) * scaledSize.x;
+    const anchorLocalY = (normalizedY - 0.5) * scaledSize.y;
+    anchorLocalPosition.set(anchorLocalX, anchorLocalY, 0);
+
+    // const scaledWidth = savedWidth * savedState.scale;
+    // const scaledHeight = savedHeight * savedState.scale;
+
+    // const anchorLocalX = (normalizedX - 0.5) * scaledWidth;
+    // const anchorLocalY = (normalizedY - 0.5) * scaledHeight;
+    // anchorLocalPosition.set(anchorLocalX, anchorLocalY, 0);
+
+    // Convert local anchor to world position
+    const currentAnchorWorld = anchorLocalPosition.clone();
+    // WE NEED TO USE THE ROTATION GROUP TO GET THE WORLD POSITION
+    rotationGroup.localToWorld(currentAnchorWorld);
+    rotationGroup.updateMatrixWorld(); // Ensure world matrix is updated
+    rotationGroup.updateWorldMatrix(true, false); // Update world matrix
+    // rotationGroup.localToWorld(currentAnchorWorld);
+
+    // Target saved world anchor position
+    const targetWorldAnchor = new THREE.Vector3().copy(
+      savedState.anchorWorldPosition
     );
 
-    updateAnchorMarkerPosition();
-
-    // Match anchor world position exactly
-    const anchorWorldAfter = anchorLocalPosition.clone();
-    rotationGroup.localToWorld(anchorWorldAfter);
-
-    const targetWorldAnchor = new THREE.Vector3(
-      savedState.anchorWorldPosition.x,
-      savedState.anchorWorldPosition.y,
-      savedState.anchorWorldPosition.z
-    );
-
+    // Compute and apply position shift
     const shift = new THREE.Vector3().subVectors(
       targetWorldAnchor,
-      anchorWorldAfter
+      currentAnchorWorld
     );
-    console.log("shift :>> ", shift);
     rotationGroup.position.add(shift);
 
-    // Update handles
-    if (movementHandle) {
-      movementHandle.position.x = rotationGroup.position.x;
-      movementHandle.position.y = rotationGroup.position.y;
-    }
+    console.log("targetWorldAnchor :>> ", targetWorldAnchor);
 
+    // Update marker and handles
+    anchorMarker.position.copy(targetWorldAnchor);
+    updateAnchorMarkerPosition();
+    if (movementHandle) movementHandle.position.copy(rotationGroup.position);
     positionRotationHandle();
 
-    console.log("Applied saved state to new SVG");
+    console.log("✅ Applied saved state to SVG");
   } catch (error) {
-    console.error("Error applying saved state:", error);
+    console.error("❌ Error applying saved state:", error);
   }
 }
 
